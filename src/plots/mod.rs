@@ -1,13 +1,12 @@
-use nalgebra::{DefaultAllocator, Dim, OVector, allocator::Allocator};
+use nalgebra::SVector;
 use plotters::prelude::*;
 
 use crate::types::Real;
 
-pub fn plot_trajectory<N: Dim>(
-    trajectory: &[OVector<Real, N>],
+pub fn plot_trajectory<const N: usize>(
+    trajectory: &Vec<SVector<Real, N>>,
     filename: &str,
 ) -> Result<(), Box<dyn std::error::Error>>
-where DefaultAllocator: Allocator<N>
 {
     // Create background
     let root = BitMapBackend::new(filename, (800, 600)).into_drawing_area();

@@ -1,45 +1,44 @@
-#![allow(non_snake_case)]
-use nalgebra::{U1, U2, matrix, vector};
-
-use state_space::model::{LinearSystem, SystemModel};
+use nalgebra::{SVector, matrix, vector};
+use state_space::model::{ContinuousLinearSystem, DiscreteLinearSystem};
 use state_space::plots::plot_trajectory;
-use state_space::types::{Real, State};
+use state_space::types::Real;
 
-// Linear Mass-Spring-Damper system
-fn mass_spring(m: Real, k: Real, c: Real) -> LinearSystem<U2, U1, U1> {
-    let A = matrix![
+fn mass_spring_damper(m: Real, k: Real, c: Real) -> ContinuousLinearSystem<2, 1, 1> {
+    let a = matrix![
         0., 1.;
-        -k / m, -c / m;
+        -k/m, -c/m;
     ];
-    let B = matrix![
+    let b = matrix![
         0.;
-        1. / m;
+        1./m;
     ];
-    let C = matrix![1., 0.];
-    LinearSystem::new(A, B, C)
+    let c = matrix![1., 0.];
+    ContinuousLinearSystem::new(a, b, c)
 }
 
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let dt: Real = 0.01; // s
-    let m: Real = 0.5; // kg
-    let k: Real = 4.16; // kg s^-2
-    let c: Real = 0.8; // kg s^-1
+    let dt = 0.01;
+    let system = mass_spring_damper(0.5, 2.16, 0.8);
+    println!(
+        "Continuous system is stable: {}",
+        system.is_open_loop_stable()
+    );
+    let dsystem = DiscreteLinearSystem::from_exact(&system, dt);
+    println!(
+        "Discretised system is stable: {}",
+        dsystem.is_open_loop_stable()
+    );
 
-    let model = mass_spring(m, k, c);
-    let mut x= vector![1., 0.];
+    let mut x = vector![1., 0.];
+    let u = vector![0.];
 
-    let u= vector![0.];
+    let n_iters = (25. / dt) as usize;
+    let mut trajectory: Vec<SVector<Real, 2>> = Vec::with_capacity(n_iters);
 
-    let steps = (25.0 as Real / dt) as usize;
-
-    let mut state_sequence: Vec<State<U2>> = Vec::new();
-    // let mut state_sequence: Vec<State<U2>> = Vec::new();
-
-    for _ in 0..steps {
-        state_sequence.push(x);
-        x = model.f_rk4(&x, &u, dt);
+    for _ in 0..n_iters {
+        trajectory.push(x);
+        x = dsystem.f(&x, &u);
     }
-    plot_trajectory(&state_sequence, "states.png")?;
+    let _ = plot_trajectory(&trajectory, "states_exact.png");
     Ok(())
 }
