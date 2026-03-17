@@ -1,29 +1,31 @@
 use crate::maths::expm;
-use nalgebra::{DMatrix, Normed, RealField, SMatrix, SVector};
+use nalgebra::{DMatrix, SMatrix, SVector};
 use crate::types::Real;
 pub struct ContinuousLinearSystem<
     const X: usize,
     const U: usize,
+    const Z: usize,
     const Y: usize,
 > {
     a: SMatrix<Real, X, X>,
     b: SMatrix<Real, X, U>,
+    h: SMatrix<Real, X, Z>,
     c: SMatrix<Real, Y, X>,
 }
 
-impl<const X: usize, const U: usize, const Y: usize>
-    ContinuousLinearSystem<X, U, Y>
+impl<const X: usize, const U: usize, const Z: usize, const Y: usize>
+    ContinuousLinearSystem<X, U, Z, Y>
 {
-    pub fn new(a: SMatrix<Real, X, X>, b: SMatrix<Real, X, U>, c: SMatrix<Real, Y, X>) -> Self {
-        Self { a, b, c }
+    pub fn new(a: SMatrix<Real, X, X>, b: SMatrix<Real, X, U>, h: SMatrix<Real, X, Z>, c: SMatrix<Real, Y, X>) -> Self {
+        Self { a, b, h, c }
     }
 
-    pub fn f(&self, x: &SVector<Real, X>, u: &SVector<Real, U>) -> SVector<Real, X> {
-        &self.a * x + &self.b * u
+    pub fn f(&self, x: &SVector<Real, X>, u: &SVector<Real, U>, z: &SVector<Real, Z>) -> SVector<Real, X> {
+        self.a * x + self.b * u + self.h * z
     }
 
     pub fn g(&self, x: &SVector<Real, X>) -> SVector<Real, Y> {
-        &self.c * x
+        self.c * x
     }
 
     pub fn is_open_loop_stable(&self) -> bool {
@@ -35,29 +37,31 @@ impl<const X: usize, const U: usize, const Y: usize>
     }
 }
 
-pub struct DiscreteLinearSystem<const X: usize, const U: usize, const Y: usize>
+pub struct DiscreteLinearSystem<const X: usize, const U: usize, const Z: usize, const Y: usize>
 {
     a: SMatrix<Real, X, X>,
     b: SMatrix<Real, X, U>,
+    h: SMatrix<Real, X, Z>,
     c: SMatrix<Real, Y, X>,
 }
 
-impl<const X: usize, const U: usize, const Y: usize>
-    DiscreteLinearSystem<X, U, Y>
+impl<const X: usize, const U: usize, const Z: usize, const Y: usize>
+    DiscreteLinearSystem<X, U, Z, Y>
 {
-    pub fn new(a: SMatrix<Real, X, X>, b: SMatrix<Real, X, U>, c: SMatrix<Real, Y, X>) -> Self {
-        Self { a, b, c }
+    pub fn new(a: SMatrix<Real, X, X>, b: SMatrix<Real, X, U>, h: SMatrix<Real, X, Z>, c: SMatrix<Real, Y, X>) -> Self {
+        Self { a, b, h, c }
     }
 
-    pub fn from_euler(model: &ContinuousLinearSystem<X, U, Y>, dt: Real) -> Self {
+    pub fn from_euler(model: &ContinuousLinearSystem<X, U, Z, Y>, dt: Real) -> Self {
         let a = SMatrix::<Real, X, X>::identity() + model.a.scale(dt);
         let b = model.b.scale(dt);
-        let c = model.c.clone();
+        let h = model.h;
+        let c = model.c;
 
-        Self { a, b, c }
+        Self { a, b, h, c }
     }
 
-    pub fn from_rk4(model: &ContinuousLinearSystem<X, U, Y>, dt: Real) -> Self {
+    pub fn from_rk4(model: &ContinuousLinearSystem<X, U, Z, Y>, dt: Real) -> Self {
         let iden = SMatrix::<Real, X, X>::identity();
         let half_dt = dt / (2. as Real);
 
@@ -88,11 +92,12 @@ impl<const X: usize, const U: usize, const Y: usize>
         Self {
             a: iden + a * (dt / (6. as Real)),
             b: b * (dt / (6. as Real)),
+            h: model.h,
             c: model.c,
         }
     }
 
-    pub fn from_exact(model: &ContinuousLinearSystem<X, U, Y>, dt: Real) -> Self {
+    pub fn from_exact(model: &ContinuousLinearSystem<X, U, Z, Y>, dt: Real) -> Self {
         let mut m = DMatrix::<Real>::zeros(X + U, X + U);
         m.view_mut((0, 0), (X, X)).copy_from(&(model.a * dt));
         m.view_mut((0, X), (X, U)).copy_from(&(model.b * dt));
@@ -104,15 +109,15 @@ impl<const X: usize, const U: usize, const Y: usize>
         a.copy_from(&m_exp.view((0, 0), (X, X)));
         b.copy_from(&m_exp.view((0, 0), (X, U)));
 
-        Self { a, b, c: model.c }
+        Self { a, b, h: model.h, c: model.c }
     }
 
-    pub fn f(&self, x: &SVector<Real, X>, u: &SVector<Real, U>) -> SVector<Real, X> {
-        &self.a * x + &self.b * u
+    pub fn f(&self, x: &SVector<Real, X>, u: &SVector<Real, U>, z: &SVector<Real, Z>) -> SVector<Real, X> {
+        self.a * x + self.b * u + self.h * z
     }
 
     pub fn g(&self, x: &SVector<Real, X>) -> SVector<Real, Y> {
-        &self.c * x
+        self.c * x
     }
 
     pub fn is_open_loop_stable(&self) -> bool {

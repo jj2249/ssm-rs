@@ -4,7 +4,7 @@ use plotters::prelude::*;
 use crate::types::Real;
 
 pub fn plot_trajectory<const N: usize>(
-    trajectory: &Vec<SVector<Real, N>>,
+    trajectory: &[SVector<Real, N>],
     filename: &str,
 ) -> Result<(), Box<dyn std::error::Error>>
 {
