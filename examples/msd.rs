@@ -2,7 +2,7 @@ use nalgebra::{SVector, matrix, vector};
 use state_space::filters::{KalmanFilter, KalmanState};
 use state_space::maths::r_state;
 use state_space::models::{ContinuousLinearSystem, DiscreteLinearSystem};
-use state_space::plots::plot_trajectory;
+use state_space::plots::StatePlot;
 use state_space::types::Real;
 
 fn mass_spring_damper(m: Real, k: Real, c: Real) -> ContinuousLinearSystem<2, 1, 1, 1> {
@@ -61,8 +61,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         means.push(*state.m());
         vars.push(state.p().diagonal());
     }
-    let _ = plot_trajectory(&trajectory, "states_exact.png");
-    let _ = plot_trajectory(&means, "kalman_mean.png");
-    let _ = plot_trajectory(&vars, "kalman_var.png");
+    StatePlot::new("kalman_output.png")
+        .add_line("trajectory", &trajectory)
+        .add_line("kalman mean", &means)
+        .add_confidence_band("2σ bounds", &means, &vars, 2.0)
+        .draw()?;
     Ok(())
 }
