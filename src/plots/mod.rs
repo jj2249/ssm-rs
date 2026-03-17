@@ -6,8 +6,7 @@ use crate::types::Real;
 pub fn plot_trajectory<const N: usize>(
     trajectory: &[SVector<Real, N>],
     filename: &str,
-) -> Result<(), Box<dyn std::error::Error>>
-{
+) -> Result<(), Box<dyn std::error::Error>> {
     // Create background
     let root = BitMapBackend::new(filename, (800, 600)).into_drawing_area();
     root.fill(&WHITE)?;

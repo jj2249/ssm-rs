@@ -1,6 +1,7 @@
 use nalgebra::{SVector, matrix, vector};
+use state_space::filters::{KalmanFilter, KalmanState};
 use state_space::maths::r_state;
-use state_space::model::{ContinuousLinearSystem, DiscreteLinearSystem};
+use state_space::models::{ContinuousLinearSystem, DiscreteLinearSystem};
 use state_space::plots::plot_trajectory;
 use state_space::types::Real;
 
@@ -33,17 +34,35 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut x = vector![1., 0.];
     let u = vector![0.];
+    let mut y = dsystem.g(&x);
 
     let n_iters = (25. / dt) as usize;
     let mut trajectory: Vec<SVector<Real, 2>> = Vec::with_capacity(n_iters);
+    let mut means: Vec<SVector<Real, 2>> = Vec::with_capacity(n_iters);
+    let mut vars: Vec<SVector<Real, 2>> = Vec::with_capacity(n_iters);
 
     let mut rng = rand::rng();
+
+    let q = matrix![0.01];
+    let r = matrix![1e-2];
+
+    let kf = KalmanFilter::new(&dsystem, q, r);
+    let m = vector![1., 0.];
+    let p = matrix![1e-2, 0.; 0., 1e-2];
+    let mut state = KalmanState::new(m, p);
 
     for _ in 0..n_iters {
         trajectory.push(x);
         let z = r_state(&mut rng, 0., 0.01);
         x = dsystem.f(&x, &u, &z);
+        y = dsystem.g(&x);
+        state = kf.predict(&state, &u);
+        state = kf.update(&state, &y);
+        means.push(*state.m());
+        vars.push(state.p().diagonal());
     }
     let _ = plot_trajectory(&trajectory, "states_exact.png");
+    let _ = plot_trajectory(&means, "kalman_mean.png");
+    let _ = plot_trajectory(&vars, "kalman_var.png");
     Ok(())
 }

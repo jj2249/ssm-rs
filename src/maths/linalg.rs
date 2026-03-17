@@ -1,9 +1,7 @@
-use nalgebra::{
-    DefaultAllocator, Dim, OMatrix, UniformNorm, allocator::Allocator,};
+use nalgebra::{DefaultAllocator, Dim, OMatrix, UniformNorm, allocator::Allocator};
 use std::cmp;
 
 use crate::types::Real;
-
 
 pub fn expm<N>(a: &OMatrix<Real, N, N>) -> OMatrix<Real, N, N>
 where

@@ -1,12 +1,8 @@
 use crate::maths::expm;
-use nalgebra::{DMatrix, SMatrix, SVector};
 use crate::types::Real;
-pub struct ContinuousLinearSystem<
-    const X: usize,
-    const U: usize,
-    const Z: usize,
-    const Y: usize,
-> {
+use nalgebra::{DMatrix, SMatrix, SVector};
+
+pub struct ContinuousLinearSystem<const X: usize, const U: usize, const Z: usize, const Y: usize> {
     a: SMatrix<Real, X, X>,
     b: SMatrix<Real, X, U>,
     h: SMatrix<Real, X, Z>,
@@ -16,11 +12,34 @@ pub struct ContinuousLinearSystem<
 impl<const X: usize, const U: usize, const Z: usize, const Y: usize>
     ContinuousLinearSystem<X, U, Z, Y>
 {
-    pub fn new(a: SMatrix<Real, X, X>, b: SMatrix<Real, X, U>, h: SMatrix<Real, X, Z>, c: SMatrix<Real, Y, X>) -> Self {
+    pub fn new(
+        a: SMatrix<Real, X, X>,
+        b: SMatrix<Real, X, U>,
+        h: SMatrix<Real, X, Z>,
+        c: SMatrix<Real, Y, X>,
+    ) -> Self {
         Self { a, b, h, c }
     }
 
-    pub fn f(&self, x: &SVector<Real, X>, u: &SVector<Real, U>, z: &SVector<Real, Z>) -> SVector<Real, X> {
+    pub fn a(&self) -> &SMatrix<Real, X, X> {
+        &self.a
+    }
+    pub fn b(&self) -> &SMatrix<Real, X, U> {
+        &self.b
+    }
+    pub fn h(&self) -> &SMatrix<Real, X, Z> {
+        &self.h
+    }
+    pub fn c(&self) -> &SMatrix<Real, Y, X> {
+        &self.c
+    }
+
+    pub fn f(
+        &self,
+        x: &SVector<Real, X>,
+        u: &SVector<Real, U>,
+        z: &SVector<Real, Z>,
+    ) -> SVector<Real, X> {
         self.a * x + self.b * u + self.h * z
     }
 
@@ -31,14 +50,11 @@ impl<const X: usize, const U: usize, const Z: usize, const Y: usize>
     pub fn is_open_loop_stable(&self) -> bool {
         let mut ad = DMatrix::<Real>::zeros(X, X);
         ad.copy_from(&self.a);
-        ad.complex_eigenvalues()
-            .iter()
-            .all(|e| e.re < (0. as Real))
+        ad.complex_eigenvalues().iter().all(|e| e.re < (0. as Real))
     }
 }
 
-pub struct DiscreteLinearSystem<const X: usize, const U: usize, const Z: usize, const Y: usize>
-{
+pub struct DiscreteLinearSystem<const X: usize, const U: usize, const Z: usize, const Y: usize> {
     a: SMatrix<Real, X, X>,
     b: SMatrix<Real, X, U>,
     h: SMatrix<Real, X, Z>,
@@ -48,7 +64,12 @@ pub struct DiscreteLinearSystem<const X: usize, const U: usize, const Z: usize, 
 impl<const X: usize, const U: usize, const Z: usize, const Y: usize>
     DiscreteLinearSystem<X, U, Z, Y>
 {
-    pub fn new(a: SMatrix<Real, X, X>, b: SMatrix<Real, X, U>, h: SMatrix<Real, X, Z>, c: SMatrix<Real, Y, X>) -> Self {
+    pub fn new(
+        a: SMatrix<Real, X, X>,
+        b: SMatrix<Real, X, U>,
+        h: SMatrix<Real, X, Z>,
+        c: SMatrix<Real, Y, X>,
+    ) -> Self {
         Self { a, b, h, c }
     }
 
@@ -109,10 +130,33 @@ impl<const X: usize, const U: usize, const Z: usize, const Y: usize>
         a.copy_from(&m_exp.view((0, 0), (X, X)));
         b.copy_from(&m_exp.view((0, 0), (X, U)));
 
-        Self { a, b, h: model.h, c: model.c }
+        Self {
+            a,
+            b,
+            h: model.h,
+            c: model.c,
+        }
     }
 
-    pub fn f(&self, x: &SVector<Real, X>, u: &SVector<Real, U>, z: &SVector<Real, Z>) -> SVector<Real, X> {
+    pub fn a(&self) -> &SMatrix<Real, X, X> {
+        &self.a
+    }
+    pub fn b(&self) -> &SMatrix<Real, X, U> {
+        &self.b
+    }
+    pub fn h(&self) -> &SMatrix<Real, X, Z> {
+        &self.h
+    }
+    pub fn c(&self) -> &SMatrix<Real, Y, X> {
+        &self.c
+    }
+
+    pub fn f(
+        &self,
+        x: &SVector<Real, X>,
+        u: &SVector<Real, U>,
+        z: &SVector<Real, Z>,
+    ) -> SVector<Real, X> {
         self.a * x + self.b * u + self.h * z
     }
 
