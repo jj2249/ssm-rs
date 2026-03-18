@@ -128,7 +128,7 @@ impl<const X: usize, const U: usize, const Z: usize, const Y: usize>
         let mut a = SMatrix::<Real, X, X>::zeros();
         let mut b = SMatrix::<Real, X, U>::zeros();
         a.copy_from(&m_exp.view((0, 0), (X, X)));
-        b.copy_from(&m_exp.view((0, 0), (X, U)));
+        b.copy_from(&m_exp.view((0, X), (X, U)));
 
         Self {
             a,

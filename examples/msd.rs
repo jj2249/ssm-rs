@@ -1,4 +1,4 @@
-use nalgebra::{SVector, matrix, vector};
+use nalgebra::{SMatrix, SVector, matrix, vector};
 use state_space::filters::{KalmanFilter, KalmanState};
 use state_space::maths::r_state;
 use state_space::models::{ContinuousLinearSystem, DiscreteLinearSystem};
@@ -37,34 +37,32 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut y = dsystem.g(&x);
 
     let n_iters = (25. / dt) as usize;
+    let mut observations: Vec<SVector<Real, 1>> = Vec::with_capacity(n_iters);
     let mut trajectory: Vec<SVector<Real, 2>> = Vec::with_capacity(n_iters);
     let mut means: Vec<SVector<Real, 2>> = Vec::with_capacity(n_iters);
-    let mut vars: Vec<SVector<Real, 2>> = Vec::with_capacity(n_iters);
+    let mut std_devs: Vec<SVector<Real, 2>> = Vec::with_capacity(n_iters);
 
     let mut rng = rand::rng();
 
-    let q = matrix![0.01];
-    let r = matrix![1e-2];
-
-    let kf = KalmanFilter::new(&dsystem, q, r);
-    let m = vector![1., 0.];
-    let p = matrix![1e-2, 0.; 0., 1e-2];
-    let mut state = KalmanState::new(m, p);
+    let kf = KalmanFilter::new(&dsystem, matrix![1e-4], matrix![1e-4]);
+    let p = SMatrix::from_diagonal_element(1e-2);
+    let mut state = KalmanState::new(x.clone(), p);
 
     for _ in 0..n_iters {
         trajectory.push(x);
+        observations.push(y);
         let z = r_state(&mut rng, 0., 0.01);
         x = dsystem.f(&x, &u, &z);
         y = dsystem.g(&x);
         state = kf.predict(&state, &u);
         state = kf.update(&state, &y);
         means.push(*state.m());
-        vars.push(state.p().diagonal());
+        std_devs.push(state.p().diagonal().map(|v| v.sqrt()));
     }
     StatePlot::new("kalman_output.png")
         .add_line("trajectory", &trajectory)
         .add_line("kalman mean", &means)
-        .add_confidence_band("2σ bounds", &means, &vars, 2.0)
+        .add_confidence_band("2σ bounds", &means, &std_devs, 2.0)
         .draw()?;
     Ok(())
 }
