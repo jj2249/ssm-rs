@@ -70,7 +70,12 @@ impl<const N: usize> StatePlot<N> {
                         }
                     }
                 }
-                SeriesKind::Band { data: means, band: std_devs, k, .. } => {
+                SeriesKind::Band {
+                    data: means,
+                    band: std_devs,
+                    k,
+                    ..
+                } => {
                     n_points = n_points.max(means.len());
                     for (m, s) in means.iter().zip(std_devs.iter()) {
                         for c in 0..N {
@@ -92,11 +97,7 @@ impl<const N: usize> StatePlot<N> {
             .caption("State trajectory", ("sans-serif", 40))
             .build_cartesian_2d(0..n_points, y_min..y_max)?;
 
-        chart
-            .configure_mesh()
-            .x_desc("t")
-            .y_desc("value")
-            .draw()?;
+        chart.configure_mesh().x_desc("t").y_desc("value").draw()?;
 
         let mut color_idx = 0usize;
         for s in &self.series {
@@ -116,24 +117,32 @@ impl<const N: usize> StatePlot<N> {
                         color_idx += 1;
                     }
                 }
-                SeriesKind::Band { label, data: means, band: variances, k } => {
+                SeriesKind::Band {
+                    label,
+                    data: means,
+                    band: variances,
+                    k,
+                } => {
                     for component in 0..N {
                         let ci = color_idx;
                         let k = *k;
                         chart
-                            .draw_series(
-                                means.iter().zip(variances.iter()).enumerate().map(|(i, (m, v))| {
+                            .draw_series(means.iter().zip(variances.iter()).enumerate().map(
+                                |(i, (m, v))| {
                                     let upper = m[component] + k * v[component];
                                     let lower = m[component] - k * v[component];
                                     Rectangle::new(
                                         [(i, lower), (i + 1, upper)],
                                         Palette99::pick(ci).mix(0.3).filled(),
                                     )
-                                }),
-                            )?
+                                },
+                            ))?
                             .label(format!("{} x{}", label, component + 1))
                             .legend(move |(x, y)| {
-                                Rectangle::new([(x, y - 5), (x + 20, y + 5)], Palette99::pick(ci).mix(0.5).filled())
+                                Rectangle::new(
+                                    [(x, y - 5), (x + 20, y + 5)],
+                                    Palette99::pick(ci).mix(0.5).filled(),
+                                )
                             });
                         color_idx += 1;
                     }

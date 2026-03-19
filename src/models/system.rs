@@ -1,12 +1,16 @@
+use crate::maths::Noise;
 use crate::maths::expm;
 use crate::types::Real;
 use nalgebra::{DMatrix, SMatrix, SVector};
+use rand::rngs::ThreadRng;
 
 pub struct ContinuousLinearSystem<const X: usize, const U: usize, const Z: usize, const Y: usize> {
     a: SMatrix<Real, X, X>,
     b: SMatrix<Real, X, U>,
     h: SMatrix<Real, X, Z>,
     c: SMatrix<Real, Y, X>,
+    process_noise: Noise<Z>,
+    observation_noise: Noise<Y>,
 }
 
 impl<const X: usize, const U: usize, const Z: usize, const Y: usize>
@@ -17,8 +21,17 @@ impl<const X: usize, const U: usize, const Z: usize, const Y: usize>
         b: SMatrix<Real, X, U>,
         h: SMatrix<Real, X, Z>,
         c: SMatrix<Real, Y, X>,
+        process_noise: Noise<Z>,
+        observation_noise: Noise<Y>,
     ) -> Self {
-        Self { a, b, h, c }
+        Self {
+            a,
+            b,
+            h,
+            c,
+            process_noise,
+            observation_noise,
+        }
     }
 
     pub fn a(&self) -> &SMatrix<Real, X, X> {
@@ -38,13 +51,13 @@ impl<const X: usize, const U: usize, const Z: usize, const Y: usize>
         &self,
         x: &SVector<Real, X>,
         u: &SVector<Real, U>,
-        z: &SVector<Real, Z>,
+        rng: &mut ThreadRng,
     ) -> SVector<Real, X> {
-        self.a * x + self.b * u + self.h * z
+        self.a * x + self.b * u + self.h * self.process_noise.sample(rng)
     }
 
-    pub fn g(&self, x: &SVector<Real, X>) -> SVector<Real, Y> {
-        self.c * x
+    pub fn g(&self, x: &SVector<Real, X>, rng: &mut ThreadRng) -> SVector<Real, Y> {
+        self.c * x + self.observation_noise.sample(rng)
     }
 
     pub fn is_open_loop_stable(&self) -> bool {
@@ -59,6 +72,8 @@ pub struct DiscreteLinearSystem<const X: usize, const U: usize, const Z: usize, 
     b: SMatrix<Real, X, U>,
     h: SMatrix<Real, X, Z>,
     c: SMatrix<Real, Y, X>,
+    process_noise: Noise<Z>,
+    observation_noise: Noise<Y>,
 }
 
 impl<const X: usize, const U: usize, const Z: usize, const Y: usize>
@@ -69,17 +84,30 @@ impl<const X: usize, const U: usize, const Z: usize, const Y: usize>
         b: SMatrix<Real, X, U>,
         h: SMatrix<Real, X, Z>,
         c: SMatrix<Real, Y, X>,
+        process_noise: Noise<Z>,
+        observation_noise: Noise<Y>,
     ) -> Self {
-        Self { a, b, h, c }
+        Self {
+            a,
+            b,
+            h,
+            c,
+            process_noise,
+            observation_noise,
+        }
     }
 
     pub fn from_euler(model: &ContinuousLinearSystem<X, U, Z, Y>, dt: Real) -> Self {
         let a = SMatrix::<Real, X, X>::identity() + model.a.scale(dt);
         let b = model.b.scale(dt);
-        let h = model.h;
-        let c = model.c;
-
-        Self { a, b, h, c }
+        Self {
+            a,
+            b,
+            h: model.h,
+            c: model.c,
+            process_noise: model.process_noise.discretise(dt),
+            observation_noise: model.observation_noise,
+        }
     }
 
     pub fn from_rk4(model: &ContinuousLinearSystem<X, U, Z, Y>, dt: Real) -> Self {
@@ -115,6 +143,8 @@ impl<const X: usize, const U: usize, const Z: usize, const Y: usize>
             b: b * (dt / (6. as Real)),
             h: model.h,
             c: model.c,
+            process_noise: model.process_noise.discretise(dt),
+            observation_noise: model.observation_noise,
         }
     }
 
@@ -135,6 +165,8 @@ impl<const X: usize, const U: usize, const Z: usize, const Y: usize>
             b,
             h: model.h,
             c: model.c,
+            process_noise: model.process_noise.discretise(dt),
+            observation_noise: model.observation_noise,
         }
     }
 
@@ -155,13 +187,13 @@ impl<const X: usize, const U: usize, const Z: usize, const Y: usize>
         &self,
         x: &SVector<Real, X>,
         u: &SVector<Real, U>,
-        z: &SVector<Real, Z>,
+        rng: &mut ThreadRng,
     ) -> SVector<Real, X> {
-        self.a * x + self.b * u + self.h * z
+        self.a * x + self.b * u + self.h * self.process_noise.sample(rng)
     }
 
-    pub fn g(&self, x: &SVector<Real, X>) -> SVector<Real, Y> {
-        self.c * x
+    pub fn g(&self, x: &SVector<Real, X>, rng: &mut ThreadRng) -> SVector<Real, Y> {
+        self.c * x + self.observation_noise.sample(rng)
     }
 
     pub fn is_open_loop_stable(&self) -> bool {
