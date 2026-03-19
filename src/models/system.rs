@@ -1,5 +1,5 @@
-use crate::maths::Noise;
 use crate::maths::expm;
+use crate::maths::Noise;
 use crate::types::Real;
 use nalgebra::{DMatrix, SMatrix, SVector};
 use rand::rngs::ThreadRng;
@@ -24,46 +24,13 @@ impl<const X: usize, const U: usize, const Z: usize, const Y: usize>
         process_noise: Noise<Z>,
         observation_noise: Noise<Y>,
     ) -> Self {
-        Self {
-            a,
-            b,
-            h,
-            c,
-            process_noise,
-            observation_noise,
-        }
-    }
-
-    pub fn a(&self) -> &SMatrix<Real, X, X> {
-        &self.a
-    }
-    pub fn b(&self) -> &SMatrix<Real, X, U> {
-        &self.b
-    }
-    pub fn h(&self) -> &SMatrix<Real, X, Z> {
-        &self.h
-    }
-    pub fn c(&self) -> &SMatrix<Real, Y, X> {
-        &self.c
-    }
-
-    pub fn f(
-        &self,
-        x: &SVector<Real, X>,
-        u: &SVector<Real, U>,
-        rng: &mut ThreadRng,
-    ) -> SVector<Real, X> {
-        self.a * x + self.b * u + self.h * self.process_noise.sample(rng)
-    }
-
-    pub fn g(&self, x: &SVector<Real, X>, rng: &mut ThreadRng) -> SVector<Real, Y> {
-        self.c * x + self.observation_noise.sample(rng)
+        Self { a, b, h, c, process_noise, observation_noise }
     }
 
     pub fn is_open_loop_stable(&self) -> bool {
         let mut ad = DMatrix::<Real>::zeros(X, X);
         ad.copy_from(&self.a);
-        ad.complex_eigenvalues().iter().all(|e| e.re < (0. as Real))
+        ad.complex_eigenvalues().iter().all(|e| e.re < 0.)
     }
 }
 
@@ -87,22 +54,13 @@ impl<const X: usize, const U: usize, const Z: usize, const Y: usize>
         process_noise: Noise<Z>,
         observation_noise: Noise<Y>,
     ) -> Self {
-        Self {
-            a,
-            b,
-            h,
-            c,
-            process_noise,
-            observation_noise,
-        }
+        Self { a, b, h, c, process_noise, observation_noise }
     }
 
     pub fn from_euler(model: &ContinuousLinearSystem<X, U, Z, Y>, dt: Real) -> Self {
-        let a = SMatrix::<Real, X, X>::identity() + model.a.scale(dt);
-        let b = model.b.scale(dt);
         Self {
-            a,
-            b,
+            a: SMatrix::<Real, X, X>::identity() + model.a.scale(dt),
+            b: model.b.scale(dt),
             h: model.h,
             c: model.c,
             process_noise: model.process_noise.discretise(dt),
@@ -112,35 +70,31 @@ impl<const X: usize, const U: usize, const Z: usize, const Y: usize>
 
     pub fn from_rk4(model: &ContinuousLinearSystem<X, U, Z, Y>, dt: Real) -> Self {
         let iden = SMatrix::<Real, X, X>::identity();
-        let half_dt = dt / (2. as Real);
+        let half_dt = dt / 2.;
 
-        // k1
         let ka = model.a;
         let kb = model.b;
         let mut a = ka;
         let mut b = kb;
 
-        // k2
         let ka = model.a * (iden + ka * half_dt);
         let kb = model.b + model.a * kb * half_dt;
-        a += ka * (2. as Real);
-        b += kb * (2. as Real);
+        a += ka * 2.;
+        b += kb * 2.;
 
-        // k3
         let ka = model.a * (iden + ka * half_dt);
         let kb = model.b + model.a * kb * half_dt;
-        a += ka * (2. as Real);
-        b += kb * (2. as Real);
+        a += ka * 2.;
+        b += kb * 2.;
 
-        //k4
         let ka = model.a * (iden + ka * dt);
         let kb = model.b + model.a * kb * dt;
         a += ka;
         b += kb;
 
         Self {
-            a: iden + a * (dt / (6. as Real)),
-            b: b * (dt / (6. as Real)),
+            a: iden + a * (dt / 6.),
+            b: b * (dt / 6.),
             h: model.h,
             c: model.c,
             process_noise: model.process_noise.discretise(dt),
@@ -170,37 +124,24 @@ impl<const X: usize, const U: usize, const Z: usize, const Y: usize>
         }
     }
 
-    pub fn a(&self) -> &SMatrix<Real, X, X> {
-        &self.a
-    }
-    pub fn b(&self) -> &SMatrix<Real, X, U> {
-        &self.b
-    }
-    pub fn h(&self) -> &SMatrix<Real, X, Z> {
-        &self.h
-    }
-    pub fn c(&self) -> &SMatrix<Real, Y, X> {
-        &self.c
-    }
-
-    pub fn f(
-        &self,
-        x: &SVector<Real, X>,
-        u: &SVector<Real, U>,
-        rng: &mut ThreadRng,
-    ) -> SVector<Real, X> {
-        self.a * x + self.b * u + self.h * self.process_noise.sample(rng)
-    }
-
-    pub fn g(&self, x: &SVector<Real, X>, rng: &mut ThreadRng) -> SVector<Real, Y> {
-        self.c * x + self.observation_noise.sample(rng)
-    }
-
     pub fn is_open_loop_stable(&self) -> bool {
         let mut ad = DMatrix::<Real>::zeros(X, X);
         ad.copy_from(&self.a);
-        ad.complex_eigenvalues()
-            .iter()
-            .all(|&e| e.norm() < (1. as Real))
+        ad.complex_eigenvalues().iter().all(|&e| e.norm() < 1.)
+    }
+}
+
+impl<const X: usize, const U: usize, const Z: usize, const Y: usize> DiscreteLinearSystem<X, U, Z, Y>
+{
+    pub fn a(&self) -> &SMatrix<Real, X, X> { &self.a }
+    pub fn b(&self) -> &SMatrix<Real, X, U> { &self.b }
+    pub fn h(&self) -> &SMatrix<Real, X, Z> { &self.h }
+    pub fn c(&self) -> &SMatrix<Real, Y, X> { &self.c }
+
+    pub fn f(&self, x: &SVector<Real, X>, u: &SVector<Real, U>, rng: &mut ThreadRng) -> SVector<Real, X> {
+        self.a * x + self.b * u + self.h * self.process_noise.sample(rng)
+    }
+    pub fn g(&self, x: &SVector<Real, X>, rng: &mut ThreadRng) -> SVector<Real, Y> {
+        self.c * x + self.observation_noise.sample(rng)
     }
 }

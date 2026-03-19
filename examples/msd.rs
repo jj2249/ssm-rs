@@ -37,7 +37,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut means: Vec<SVector<Real, 2>> = Vec::with_capacity(n_iters);
     let mut std_devs: Vec<SVector<Real, 2>> = Vec::with_capacity(n_iters);
 
-    let kf = KalmanFilter::new(&dsystem, matrix![1e-4]*dt, matrix![1e-4]);
+    let kf = KalmanFilter::new(matrix![1e-4]*dt, matrix![1e-4]);
     let p = SMatrix::from_diagonal_element(0.001f64);
     let mut state = KalmanState::new(x.clone(), p);
 
@@ -46,8 +46,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         observations.push(y);
         x = dsystem.f(&x, &u, &mut rng);
         y = dsystem.g(&x, &mut rng);
-        state = kf.predict(&state, &u);
-        state = kf.update(&state, &y);
+        state = kf.predict(&dsystem, &state, &u);
+        state = kf.update(&dsystem, &state, &y);
         means.push(*state.m());
         std_devs.push(state.p().diagonal().map(|v| v.sqrt()));
     }
