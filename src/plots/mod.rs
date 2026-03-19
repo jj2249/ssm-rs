@@ -42,13 +42,13 @@ impl<const N: usize> StatePlot<N> {
         mut self,
         label: &str,
         means: &[SVector<Real, N>],
-        std_devs: &[SVector<Real, N>],
+        vars: &[SVector<Real, N>],
         k: Real,
     ) -> Self {
         self.series.push(SeriesKind::Band {
             label: label.to_string(),
             data: means.to_vec(),
-            band: std_devs.to_vec(),
+            band: vars.to_vec(),
             k,
         });
         self
@@ -72,15 +72,15 @@ impl<const N: usize> StatePlot<N> {
                 }
                 SeriesKind::Band {
                     data: means,
-                    band: std_devs,
+                    band: vars,
                     k,
                     ..
                 } => {
                     n_points = n_points.max(means.len());
-                    for (m, s) in means.iter().zip(std_devs.iter()) {
+                    for (m, s) in means.iter().zip(vars.iter()) {
                         for c in 0..N {
-                            y_min = y_min.min(m[c] - k * s[c]);
-                            y_max = y_max.max(m[c] + k * s[c]);
+                            y_min = y_min.min(m[c] - k * s[c].sqrt());
+                            y_max = y_max.max(m[c] + k * s[c].sqrt());
                         }
                     }
                 }
@@ -129,8 +129,8 @@ impl<const N: usize> StatePlot<N> {
                         chart
                             .draw_series(means.iter().zip(variances.iter()).enumerate().map(
                                 |(i, (m, v))| {
-                                    let upper = m[component] + k * v[component];
-                                    let lower = m[component] - k * v[component];
+                                    let upper = m[component] + k * v[component].sqrt();
+                                    let lower = m[component] - k * v[component].sqrt();
                                     Rectangle::new(
                                         [(i, lower), (i + 1, upper)],
                                         Palette99::pick(ci).mix(0.3).filled(),

@@ -35,7 +35,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut observations: Vec<SVector<Real, 1>> = Vec::with_capacity(n_iters);
     let mut trajectory: Vec<SVector<Real, 2>> = Vec::with_capacity(n_iters);
     let mut means: Vec<SVector<Real, 2>> = Vec::with_capacity(n_iters);
-    let mut std_devs: Vec<SVector<Real, 2>> = Vec::with_capacity(n_iters);
+    let mut vars: Vec<SVector<Real, 2>> = Vec::with_capacity(n_iters);
 
     let kf = KalmanFilter::new(matrix![1e-4]*dt, matrix![1e-4]);
     let p = SMatrix::from_diagonal_element(0.001f64);
@@ -49,12 +49,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         state = kf.predict(&dsystem, &state, &u);
         state = kf.update(&dsystem, &state, &y);
         means.push(*state.m());
-        std_devs.push(state.p().diagonal().map(|v| v.sqrt()));
+        vars.push(state.p().diagonal());
     }
     StatePlot::new("kalman_output.png")
         .add_line("trajectory", &trajectory)
         .add_line("kalman mean", &means)
-        .add_confidence_band("2σ bounds", &means, &std_devs, 2.0)
+        .add_confidence_band("2σ bounds", &means, &vars, 2.0)
         .draw()?;
     Ok(())
 }
