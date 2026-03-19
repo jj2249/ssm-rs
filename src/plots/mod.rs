@@ -14,6 +14,11 @@ enum SeriesKind<const N: usize> {
         band: Vec<SVector<Real, N>>,
         k: Real,
     },
+    Markers {
+        label: String,
+        component: usize,
+        data: Vec<Real>,
+    },
 }
 
 pub struct StatePlot<const N: usize> {
@@ -32,6 +37,15 @@ impl<const N: usize> StatePlot<N> {
     pub fn add_line(mut self, label: &str, data: &[SVector<Real, N>]) -> Self {
         self.series.push(SeriesKind::Line {
             label: label.to_string(),
+            data: data.to_vec(),
+        });
+        self
+    }
+
+    pub fn add_markers(mut self, label: &str, component: usize, data: &[Real]) -> Self {
+        self.series.push(SeriesKind::Markers {
+            label: label.to_string(),
+            component,
             data: data.to_vec(),
         });
         self
@@ -84,10 +98,17 @@ impl<const N: usize> StatePlot<N> {
                         }
                     }
                 }
+                SeriesKind::Markers { data, .. } => {
+                    n_points = n_points.max(data.len());
+                    for &val in data {
+                        y_min = y_min.min(val);
+                        y_max = y_max.max(val);
+                    }
+                }
             }
         }
 
-        let root = BitMapBackend::new(&self.filename, (800, 600)).into_drawing_area();
+        let root = SVGBackend::new(&self.filename, (800, 600)).into_drawing_area();
         root.fill(&WHITE)?;
 
         let mut chart = ChartBuilder::on(&root)
@@ -146,6 +167,17 @@ impl<const N: usize> StatePlot<N> {
                             });
                         color_idx += 1;
                     }
+                }
+                SeriesKind::Markers { label, component, data } => {
+                    let ci = color_idx;
+                    let comp = *component;
+                    chart
+                        .draw_series(data.iter().enumerate().map(|(i, &v)| {
+                            Cross::new((i, v), 2, Palette99::pick(ci))
+                        }))?
+                        .label(format!("{} x{}", label, comp + 1))
+                        .legend(move |(x, y)| Cross::new((x + 10, y), 5, Palette99::pick(ci)));
+                    color_idx += 1;
                 }
             }
         }
