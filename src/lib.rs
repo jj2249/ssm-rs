@@ -3,3 +3,4 @@ pub mod maths;
 pub mod models;
 pub mod plots;
 pub mod types;
+pub mod controllers;

@@ -1,6 +1,7 @@
 use nalgebra::{SMatrix, SVector, matrix, vector};
-use smc_rs::filters::{KalmanFilter, KalmanState};
-use smc_rs::maths::Gaussian;
+use smc_rs::filters::{Filter, StateEstimate};
+use smc_rs::maths::Noise;
+use smc_rs::controllers::Controller;
 use smc_rs::models::{ContinuousLinearSystem, DiscreteLinearSystem};
 use smc_rs::plots::StatePlot;
 use smc_rs::types::Real;
@@ -16,7 +17,7 @@ fn mass_spring_damper(m: Real, k: Real, c: Real, sp: Real, so:Real) -> Continuou
     ];
     let h = matrix![0.; 1.];
     let c = matrix![1., 0.];
-    ContinuousLinearSystem::new(a, b, h, c, Gaussian(0f64, sp), Gaussian(0f64, so))
+    ContinuousLinearSystem::new(a, b, h, c, Noise::Gaussian(0f64, sp), Noise::Gaussian(0f64, so))
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -28,9 +29,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let so = 1e-1;
 
     let system = mass_spring_damper(0.5, 2.16, 0.8, sp, so);
-    let dsystem = DiscreteLinearSystem::from_exact(&system, dt);
+    let dsystem = DiscreteLinearSystem::from_expm(&system, dt, Controller::Null);
 
-    let mut x = vector![1., 0.];
+    let mut x = vector![5., 0.];
     let u = vector![0.];
     
     let mut y = dsystem.g(&x, &mut rng);
@@ -41,14 +42,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut means: Vec<SVector<Real, 2>> = Vec::with_capacity(n_iters);
     let mut vars: Vec<SVector<Real, 2>> = Vec::with_capacity(n_iters);
 
-    let kf = KalmanFilter::new(matrix![sp.powi(2)]*dt, matrix![so.powi(2)]);
+    let kf = Filter::kalman(matrix![sp.powi(2)]*dt, matrix![so.powi(2)]);
     let p = SMatrix::from_diagonal_element(1.);
-    let mut state = KalmanState::new(x.clone(), p);
+    let mut state = StateEstimate::new(x.clone(), p);
 
     for _ in 0..n_iters {
         trajectory.push(x);
         observations.push(y);
-        x = dsystem.f(&x, &u, &mut rng);
+        x = dsystem.f(&x, &mut rng);
         y = dsystem.g(&x, &mut rng);
         state = kf.predict(&dsystem, &state, &u);
         state = kf.update(&dsystem, &state, &y);

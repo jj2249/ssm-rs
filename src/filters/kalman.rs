@@ -2,11 +2,11 @@ use nalgebra::{SMatrix, SVector};
 
 use crate::{models::DiscreteLinearSystem, types::Real};
 
-pub struct KalmanState<const X: usize> {
+pub struct StateEstimate<const X: usize> {
     m: SVector<Real, X>,
     p: SMatrix<Real, X, X>,
 }
-impl<const X: usize> KalmanState<X> {
+impl<const X: usize> StateEstimate<X> {
     pub fn new(m: SVector<Real, X>, p: SMatrix<Real, X, X>) -> Self {
         Self { m, p }
     }
@@ -34,14 +34,14 @@ impl<const X: usize, const U: usize, const Z: usize, const Y: usize> KalmanFilte
         }
     }
 
-    pub fn predict(&self, model:&DiscreteLinearSystem<X, U, Z, Y>, state: &KalmanState<X>, u: &SVector<Real, U>) -> KalmanState<X> {
-        KalmanState {
+    pub fn predict(&self, model:&DiscreteLinearSystem<X, U, Z, Y>, state: &StateEstimate<X>, u: &SVector<Real, U>) -> StateEstimate<X> {
+        StateEstimate {
             m: model.a() * state.m + model.b() * u,
             p: model.a() * state.p * model.a().transpose() + model.h() * self.q * model.h().transpose(),
         }
     }
 
-    pub fn update(&self, model:&DiscreteLinearSystem<X, U, Z, Y>, state: &KalmanState<X>, y: &SVector<Real, Y>) -> KalmanState<X> {
+    pub fn update(&self, model:&DiscreteLinearSystem<X, U, Z, Y>, state: &StateEstimate<X>, y: &SVector<Real, Y>) -> StateEstimate<X> {
         let e = y - model.c() * state.m;
         let s = model.c() * state.p * model.c().transpose() + self.r;
         let k = s
@@ -52,7 +52,7 @@ impl<const X: usize, const U: usize, const Z: usize, const Y: usize> KalmanFilte
 
         let i = SMatrix::<Real, X, X>::identity();
 
-        KalmanState {
+        StateEstimate {
             m: state.m + k * e,
             p: (i - k * model.c()) * state.p * (i - k * model.c()).transpose()
                 + k * self.r * k.transpose(),
