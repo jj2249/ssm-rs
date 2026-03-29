@@ -3,7 +3,7 @@ use plotters::prelude::*;
 
 use crate::types::Real;
 
-enum SeriesKind<const N: usize> {
+enum SeriesKind<const N: usize, const M: usize> {
     Line {
         label: String,
         data: Vec<SVector<Real, N>>,
@@ -16,17 +16,16 @@ enum SeriesKind<const N: usize> {
     },
     Markers {
         label: String,
-        component: usize,
-        data: Vec<Real>,
+        data: Vec<SVector<Real, M>>,
     },
 }
 
-pub struct StatePlot<const N: usize> {
+pub struct StatePlot<const N: usize, const M: usize> {
     filename: String,
-    series: Vec<SeriesKind<N>>,
+    series: Vec<SeriesKind<N, M>>,
 }
 
-impl<const N: usize> StatePlot<N> {
+impl<const N: usize, const M: usize> StatePlot<N, M> {
     pub fn new(filename: &str) -> Self {
         Self {
             filename: filename.to_string(),
@@ -42,10 +41,9 @@ impl<const N: usize> StatePlot<N> {
         self
     }
 
-    pub fn add_markers(mut self, label: &str, component: usize, data: &[Real]) -> Self {
+    pub fn add_markers(mut self, label: &str, data: &[SVector<Real, M>]) -> Self {
         self.series.push(SeriesKind::Markers {
             label: label.to_string(),
-            component,
             data: data.to_vec(),
         });
         self
@@ -100,9 +98,11 @@ impl<const N: usize> StatePlot<N> {
                 }
                 SeriesKind::Markers { data, .. } => {
                     n_points = n_points.max(data.len());
-                    for &val in data {
-                        y_min = y_min.min(val);
-                        y_max = y_max.max(val);
+                    for v in data {
+                        for &val in v.iter() {
+                            y_min = y_min.min(val);
+                            y_max = y_max.max(val);
+                        }
                     }
                 }
             }
@@ -168,16 +168,17 @@ impl<const N: usize> StatePlot<N> {
                         color_idx += 1;
                     }
                 }
-                SeriesKind::Markers { label, component, data } => {
-                    let ci = color_idx;
-                    let comp = *component;
-                    chart
-                        .draw_series(data.iter().enumerate().map(|(i, &v)| {
-                            Cross::new((i, v), 2, Palette99::pick(ci))
-                        }))?
-                        .label(format!("{} x{}", label, comp + 1))
-                        .legend(move |(x, y)| Cross::new((x + 10, y), 5, Palette99::pick(ci)));
-                    color_idx += 1;
+                SeriesKind::Markers { label, data } => {
+                    for component in 0..M {
+                        let ci = color_idx;
+                        chart
+                            .draw_series(data.iter().enumerate().map(|(i, v)| {
+                                Cross::new((i, v[component]), 2, Palette99::pick(ci))
+                            }))?
+                            .label(format!("{} x{}", label, component + 1))
+                            .legend(move |(x, y)| Cross::new((x + 10, y), 5, Palette99::pick(ci)));
+                        color_idx += 1;
+                    }
                 }
             }
         }

@@ -56,12 +56,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         means.push(*state.m());
         vars.push(state.p().diagonal());
     }
-    let obs_values: Vec<_> = observations.iter().map(|o| o[0]).collect();
     StatePlot::new("kalman_output.svg")
         .add_line("trajectory", &trajectory)
         .add_line("kalman mean", &means)
         .add_confidence_band("2σ bounds", &means, &vars, 2.0)
-        .add_markers("observations", 0, &obs_values)
+        .add_markers("observations", &observations)
         .draw()?;
     Ok(())
 }
