@@ -1,10 +1,10 @@
 use nalgebra::{SMatrix, matrix, vector};
-use smc_rs::filters::{Filter, StateEstimate};
-use smc_rs::maths::Noise;
-use smc_rs::controllers::Controller;
-use smc_rs::models::{ContinuousLinearSystem, DiscreteLinearSystem};
-use smc_rs::plots::StatePlot;
-use smc_rs::types::Real;
+use ssm_rs::filters::{Filter, StateEstimate};
+use ssm_rs::maths::Noise;
+use ssm_rs::controllers::Controller;
+use ssm_rs::models::{ContinuousLinearSystem, DiscreteLinearSystem};
+use ssm_rs::plots::StatePlot;
+use ssm_rs::types::Real;
 
 fn mass_spring_damper(m: Real, k: Real, c: Real, sp: Real, so: Real) -> ContinuousLinearSystem<2, 1, 1, 1> {
     let a = matrix![
