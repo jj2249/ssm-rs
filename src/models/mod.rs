@@ -1,3 +1,3 @@
 mod system;
 
-pub use system::{ContinuousLinearSystem, DiscreteLinearSystem};
+pub use system::{ContinuousLinearSystem, DiscreteLinearSystem, RunIter};

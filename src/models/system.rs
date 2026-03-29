@@ -1,4 +1,5 @@
 use crate::controllers::Controller;
+use crate::filters::{Filter, StateEstimate};
 use crate::maths::expm;
 use crate::maths::Noise;
 use crate::types::Real;
@@ -42,7 +43,8 @@ pub struct DiscreteLinearSystem<const X: usize, const U: usize, const Z: usize, 
     c: SMatrix<Real, Y, X>,
     process_noise: Noise<Z>,
     observation_noise: Noise<Y>,
-    controller: Controller<U>
+    controller: Controller<U>,
+    filter: Filter<X, U, Z, Y>,
 }
 
 impl<const X: usize, const U: usize, const Z: usize, const Y: usize>
@@ -55,12 +57,13 @@ impl<const X: usize, const U: usize, const Z: usize, const Y: usize>
         c: SMatrix<Real, Y, X>,
         process_noise: Noise<Z>,
         observation_noise: Noise<Y>,
-        controller: Controller<U>
+        controller: Controller<U>,
+        filter: Filter<X, U, Z, Y>,
     ) -> Self {
-        Self { a, b, h, c, process_noise, observation_noise , controller}
+        Self { a, b, h, c, process_noise, observation_noise, controller, filter }
     }
 
-    pub fn from_euler(model: &ContinuousLinearSystem<X, U, Z, Y>, dt: Real, controller: Controller<U>) -> Self {
+    pub fn from_euler(model: &ContinuousLinearSystem<X, U, Z, Y>, dt: Real, controller: Controller<U>, filter: Filter<X, U, Z, Y>) -> Self {
         Self {
             a: SMatrix::<Real, X, X>::identity() + model.a.scale(dt),
             b: model.b.scale(dt),
@@ -69,10 +72,11 @@ impl<const X: usize, const U: usize, const Z: usize, const Y: usize>
             process_noise: model.process_noise.discretise(dt),
             observation_noise: model.observation_noise,
             controller,
+            filter,
         }
     }
 
-    pub fn from_rk4(model: &ContinuousLinearSystem<X, U, Z, Y>, dt: Real, controller: Controller<U>) -> Self {
+    pub fn from_rk4(model: &ContinuousLinearSystem<X, U, Z, Y>, dt: Real, controller: Controller<U>, filter: Filter<X, U, Z, Y>) -> Self {
         let iden = SMatrix::<Real, X, X>::identity();
         let half_dt = dt / 2.;
 
@@ -103,11 +107,12 @@ impl<const X: usize, const U: usize, const Z: usize, const Y: usize>
             c: model.c,
             process_noise: model.process_noise.discretise(dt),
             observation_noise: model.observation_noise,
-            controller
+            controller,
+            filter,
         }
     }
 
-    pub fn from_expm(model: &ContinuousLinearSystem<X, U, Z, Y>, dt: Real, controller: Controller<U>) -> Self {
+    pub fn from_expm(model: &ContinuousLinearSystem<X, U, Z, Y>, dt: Real, controller: Controller<U>, filter: Filter<X, U, Z, Y>) -> Self {
         let mut m = DMatrix::<Real>::zeros(X + U, X + U);
         m.view_mut((0, 0), (X, X)).copy_from(&(model.a * dt));
         m.view_mut((0, X), (X, U)).copy_from(&(model.b * dt));
@@ -126,7 +131,8 @@ impl<const X: usize, const U: usize, const Z: usize, const Y: usize>
             c: model.c,
             process_noise: model.process_noise.discretise(dt),
             observation_noise: model.observation_noise,
-            controller
+            controller,
+            filter,
         }
     }
 
@@ -144,10 +150,40 @@ impl<const X: usize, const U: usize, const Z: usize, const Y: usize> DiscreteLin
     pub fn h(&self) -> &SMatrix<Real, X, Z> { &self.h }
     pub fn c(&self) -> &SMatrix<Real, Y, X> { &self.c }
 
-    pub fn f(&self, x: &SVector<Real, X>, rng: &mut ThreadRng) -> SVector<Real, X> {
+    fn f(&self, x: &SVector<Real, X>, rng: &mut ThreadRng) -> SVector<Real, X> {
         self.a * x + self.b * self.controller.control_law() + self.h * self.process_noise.sample(rng)
     }
-    pub fn g(&self, x: &SVector<Real, X>, rng: &mut ThreadRng) -> SVector<Real, Y> {
+
+    fn g(&self, x: &SVector<Real, X>, rng: &mut ThreadRng) -> SVector<Real, Y> {
         self.c * x + self.observation_noise.sample(rng)
+    }
+
+    /// Runs the system, generating observations and filtering them simultaneously.
+    /// Yields `(true_state, observation, posterior_estimate)` per step.
+    pub fn run<'a>(&'a self, x0: SVector<Real, X>, initial_estimate: StateEstimate<X>, rng: &'a mut ThreadRng) -> RunIter<'a, X, U, Z, Y> {
+        RunIter { system: self, x: x0, estimate: initial_estimate, rng }
+    }
+}
+
+pub struct RunIter<'a, const X: usize, const U: usize, const Z: usize, const Y: usize> {
+    system: &'a DiscreteLinearSystem<X, U, Z, Y>,
+    x: SVector<Real, X>,
+    estimate: StateEstimate<X>,
+    rng: &'a mut ThreadRng,
+}
+
+impl<'a, const X: usize, const U: usize, const Z: usize, const Y: usize> Iterator
+    for RunIter<'a, X, U, Z, Y>
+{
+    type Item = (SVector<Real, X>, SVector<Real, Y>, StateEstimate<X>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let y = self.system.g(&self.x, self.rng);
+        let u = self.system.controller.control_law();
+        let predicted = self.system.filter.predict(&self.system.a, &self.system.b, &self.system.h, &u, &self.estimate);
+        self.estimate = self.system.filter.update(&self.system.c, &y, &predicted);
+        let item = (self.x, y, self.estimate.clone());
+        self.x = self.system.f(&self.x, self.rng);
+        Some(item)
     }
 }
