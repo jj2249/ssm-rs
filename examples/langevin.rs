@@ -1,39 +1,39 @@
 use nalgebra::{SMatrix, matrix, vector};
 use smc_rs::filters::{Filter, StateEstimate};
-use smc_rs::maths::Noise;
-use smc_rs::controllers::Controller;
 use smc_rs::models::{ContinuousLinearSystem, DiscreteLinearSystem};
+use smc_rs::controllers::Controller;
 use smc_rs::plots::StatePlot;
-use smc_rs::types::Real;
-
-fn mass_spring_damper(m: Real, k: Real, c: Real, sp: Real, so: Real) -> ContinuousLinearSystem<2, 1, 1, 1> {
-    let a = matrix![
-        0., 1.;
-        -k/m, -c/m;
-    ];
-    let b = matrix![
-        0.;
-        1./m;
-    ];
-    let h = matrix![0.; 1.];
-    let c = matrix![1., 0.];
-    ContinuousLinearSystem::new(a, b, h, c, Noise::Gaussian(0f64, sp), Noise::Gaussian(0f64, so))
-}
+use smc_rs::maths::Noise;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-
     let mut rng = rand::rng();
-
-    let dt = 0.1;
+    let theta = -0.5;
     let sp = 1.;
     let so = 1e-1;
+    let dt = 0.1;
+    
+    let a = matrix![
+        0., 1.;
+        0., theta;
+        ];
+    
+    let b = matrix![0.; 0.];
+    let h = matrix![0.; 1.];
+    let c = matrix![1., 0.];
 
-    let system = mass_spring_damper(0.5, 2.16, 0.8, sp, so);
+    let system = ContinuousLinearSystem::new(
+        a,
+        b,
+        h,
+        c,
+        Noise::Gaussian(0., sp),
+        Noise::Gaussian(0., so));
+
     let dsystem = DiscreteLinearSystem::from_expm(
         &system,
         dt,
         Controller::Null,
-        Filter::Kalman { q: matrix![sp.powi(2)] * dt, r: matrix![so.powi(2)] },
+        Filter::Kalman { q: matrix![sp.powi(2)] * dt, r: matrix![so.powi(2)] }
     );
 
     let x0 = vector![5., 0.];
@@ -42,8 +42,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let results: Vec<_> = dsystem.run(x0, initial_estimate, &mut rng).take(n_iters).collect();
 
-    StatePlot::new("kalman_output.svg")
+    StatePlot::new("langevin.svg")
         .add_run(&results)
         .draw()?;
+
     Ok(())
 }

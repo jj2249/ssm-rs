@@ -1,4 +1,6 @@
+pub mod filters;
 pub mod maths;
-pub mod model;
+pub mod models;
 pub mod plots;
 pub mod types;
+pub mod controllers;
