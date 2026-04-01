@@ -25,20 +25,24 @@ fn main() {
 
     let mut x = vector![5.];
     let mut y = dynamics.observe(&x, &observation_noise.sample(&mut rng));
+    let u = controller.control_law(&x);
 
     trajectory.push(x);
     observations.push(y);
 
-    for _ in 0..100 {
-        let u = controller.control_law(&x);
+    let t = 10.;
+    let n = (t / dt) as usize;
+    let timestamps:Vec<Real> = (0..=n).map(|i| i as f64 * dt).collect();
+
+    for _ in 0..n {
         x = dynamics.propagate(&x, &u, &process_noise.sample(&mut rng));
-        y = dynamics.observe(&x, &observation_noise.sample(&mut rng));
         trajectory.push(x);
+        y = dynamics.observe(&x, &observation_noise.sample(&mut rng));
         observations.push(y);
     }
-    StatePlot::<1, 1>::new("damper.svg")
+    StatePlot::<1, 1>::new("damper.svg", &timestamps)
         .add_line("trajectory", &trajectory)
-        .add_markers("observations", &observations)
+        .add_markers(&observations)
         .draw()
         .unwrap();
 }
