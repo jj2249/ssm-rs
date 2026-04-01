@@ -2,7 +2,7 @@ use nalgebra::{SMatrix, SVector};
 
 use crate::types::Real;
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct StateEstimate<const X: usize> {
     m: SVector<Real, X>,
     p: SMatrix<Real, X, X>,

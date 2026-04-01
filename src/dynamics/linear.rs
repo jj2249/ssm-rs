@@ -39,6 +39,7 @@ impl<const X: usize, const U: usize, const Y: usize, const Z: usize> Dynamics<X,
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct DiscreteLinearSystem<const X: usize, const U: usize, const Y: usize, const Z: usize> {
     a: SMatrix<Real, X, X>,
     b: SMatrix<Real, X, U>,
