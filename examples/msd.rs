@@ -1,49 +1,23 @@
-use nalgebra::{SMatrix, matrix, vector};
-use ssm_rs::filters::{Filter, StateEstimate};
-use ssm_rs::maths::Noise;
-use ssm_rs::controllers::Controller;
-use ssm_rs::models::{ContinuousLinearSystem, DiscreteLinearSystem};
-use ssm_rs::plots::StatePlot;
+use nalgebra::{SMatrix, vector};
+use ssm_rs::dynamics::{ContinuousLinearSystem, DiscreteLinearSystem, Dynamics};
 use ssm_rs::types::Real;
+// use ssm_rs::noise::{Noise, Noiseless};
 
-fn mass_spring_damper(m: Real, k: Real, c: Real, sp: Real, so: Real) -> ContinuousLinearSystem<2, 1, 1, 1> {
-    let a = matrix![
-        0., 1.;
-        -k/m, -c/m;
-    ];
-    let b = matrix![
-        0.;
-        1./m;
-    ];
-    let h = matrix![0.; 1.];
-    let c = matrix![1., 0.];
-    ContinuousLinearSystem::new(a, b, h, c, Noise::Gaussian(0f64, sp), Noise::Gaussian(0f64, so))
-}
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-
-    let mut rng = rand::rng();
-
-    let dt = 0.1;
-    let sp = 1.;
-    let so = 1e-1;
-
-    let system = mass_spring_damper(0.5, 2.16, 0.8, sp, so);
-    let dsystem = DiscreteLinearSystem::from_expm(
-        &system,
-        dt,
-        Controller::Null,
-        Filter::Kalman { q: matrix![sp.powi(2)] * dt, r: matrix![so.powi(2)] },
+fn main() {
+    let continuous_dynamics = ContinuousLinearSystem::new(
+        SMatrix::<Real, 2, 2>::from_diagonal_element(-1.),
+        SMatrix::<Real, 2, 1>::zeros(),
+        SMatrix::<Real, 2, 1>::zeros(),
+        SMatrix::<Real, 1, 2>::from_diagonal_element(1.),
     );
-
-    let x0 = vector![5., 0.];
-    let initial_estimate = StateEstimate::new(vector![0., 0.], SMatrix::from_diagonal_element(1.));
-    let n_iters = (25. / dt) as usize;
-
-    let results: Vec<_> = dsystem.run(x0, initial_estimate, &mut rng).take(n_iters).collect();
-
-    StatePlot::new("kalman_output.svg")
-        .add_run(&results)
-        .draw()?;
-    Ok(())
+    let dt = 0.1;
+    let dynamics = DiscreteLinearSystem::from_expm(&continuous_dynamics, dt);
+    let mut x = vector![1., 0.];
+    let u = vector![0.];
+    let z = vector![0.];
+    println!("{}", x);
+    for _ in 0..100 {
+        x = dynamics.propagate(&x, &u, &z);
+        println!("{}", x);
+    }
 }
