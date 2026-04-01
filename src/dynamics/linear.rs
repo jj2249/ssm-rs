@@ -83,7 +83,7 @@ impl<const X: usize, const U: usize, const Y: usize, const Z: usize> Dynamics<X,
     for DiscreteLinearSystem<X, U, Y, Z>
 {
     fn f(&self, x: &SVector<Real, X>, u: &SVector<Real, U>) -> SVector<Real, X> {
-        &self.a * x + &self.b * u
+        self.a * x + self.b * u
     }
 
     fn f_jacobian(&self, _x: &SVector<Real, X>, _u: &SVector<Real, U>) -> &SMatrix<Real, X, X> {
