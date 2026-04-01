@@ -1,7 +1,6 @@
 use nalgebra::SVector;
 use plotters::prelude::*;
 
-use crate::filters::StateEstimate;
 use crate::types::Real;
 
 enum SeriesKind<const N: usize, const M: usize> {
@@ -48,17 +47,6 @@ impl<const N: usize, const M: usize> StatePlot<N, M> {
             data: data.to_vec(),
         });
         self
-    }
-
-    pub fn add_run(self, results: &[(SVector<Real, N>, SVector<Real, M>, StateEstimate<N>)]) -> Self {
-        let trajectory: Vec<_> = results.iter().map(|(x, _, _)| *x).collect();
-        let observations: Vec<_> = results.iter().map(|(_, y, _)| *y).collect();
-        let means: Vec<_> = results.iter().map(|(_, _, e)| *e.m()).collect();
-        let vars: Vec<_> = results.iter().map(|(_, _, e)| e.p().diagonal()).collect();
-        self.add_line("trajectory", &trajectory)
-            .add_line("estimate", &means)
-            .add_confidence_band("2σ", &means, &vars, 2.0)
-            .add_markers("observations", &observations)
     }
 
     /// Add a shaded confidence band: mean ± k * sqrt(variance) per component.

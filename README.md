@@ -1,24 +1,18 @@
-# smc-rs
+# ssm-rs
 
 A Rust library for simulating, filtering, and controlling linear stochastic dynamical systems. Built as a clean, type-safe implementation of classical state-space methods.
 
 ## Overview
 
-`smc-rs` models linear, time-invariant, discrete-time systems with the following dynamics:
+`ssm-rs` models linear, time-invariant, discrete-time systems with the following dynamics:
 $$x_{t+1} = Ax_t + Bu_t + Hz_t, \quad y_t = Cx_t + w_t$$
 where $x_t$ is the latent system state, $u_t$ is the control law, $z_t$ is the modelled "driving" noise, $y_t$ is the observation, and $w_t$ is the observation noise.
 
-A discrete-time system can be created directly with the `DiscreteLinearSystem::new` method, or from a continuous-time system with a `DiscreteLinearSystem::from_*` method.
-### Discretisation methods
-Three methods are available when converting a continuous system to discrete time:
+A discrete-time system can be created directly with `DiscreteLinearSystem::new`, or from a continuous-time system via `DiscreteLinearSystem::from_expm`.
 
-| Method | API | Notes |
-|--------|-----|-------|
-| Forward Euler | `from_euler` | First-order, fast, less accurate |
-| Runge-Kutta 4 | `from_rk4` | Fourth-order, good general-purpose choice |
-| Matrix exponential | `from_expm` | Exact for linear systems; recommended |
+### Discretisation
 
-`from_expm` uses a Padé approximation with scaling and squaring (analogous to `scipy.linalg.expm`) to solve the noiseless system exactly via the a matrix exponential
+`DiscreteLinearSystem::from_expm` converts a continuous-time system to discrete time. It uses a Padé approximation with scaling and squaring (analogous to `scipy.linalg.expm`) to solve the noiseless system exactly via the matrix exponential:
 
 $$\exp \Bigr(\begin{bmatrix}
  A & B \\
@@ -30,78 +24,83 @@ $$x_t = e^{Adt}x_0 + \int_0^{dt} e^{As}Bds \cdot u$$
 
 The noise sources are discretised analytically.
 
-### Simulating the system:
-#### Controllers
-A discrete-time system requires a controller that implements a control law. For now, the only controller is a null controller, $u=0$. `Controller::Null`
-#### Filters
-The system also requires a filter (or a smoother) that estimates the current state based on the observations. All estimates comprise a mean state and a covariance matrix.
-#### Entry point
-Once the system is defined
-1. Call `.run()` to get an iterator that yields `(true_state, observation, estimate)` at each time step.
-2. Plot the results with `StatePlot`.
+### Trait-based design
+
+The library is built around four core traits, which makes it straightforward to add new implementations:
+
+- **`Dynamics<X, U, Y, Z>`** — defines how the state evolves (`f`, `propagate`) and what is observed (`observe`). Implemented by `ContinuousLinearSystem` and `DiscreteLinearSystem`.
+- **`Filter<D, X, U, Y, Z>`** — defines a `predict`/`update` cycle over a `StateEstimate`. Implemented by `KalmanFilter`.
+- **`Controller<X, U>`** — maps a state to a control input. Implemented by `Nontroller` (zero input).
+- **`Noise<X>`** — samples a noise vector. Implemented by `WhiteNoise` and `Noiseless`.
+
+The dynamics, filter, controller, and noise are constructed independently and composed at simulation time, giving full flexibility over what gets paired with what.
+
+### Simulating the system
+
+Simulation is a manual loop — call `dynamics.propagate`, then `filter.predict` and `filter.update` at each step:
+
+```rust
+for _ in 0..n {
+    x = dynamics.propagate(&x, &u, &process_noise.sample(&mut rng));
+    state = filter.predict(&state, &u);
+    let y = dynamics.observe(&x, &observation_noise.sample(&mut rng));
+    state = filter.update(&state, &y);
+}
+```
 
 ## Examples
 
-### Mass-Spring-Damper
+### Linear Damper
 
-A second-order mechanical system — position and velocity are the latent states, and the position is observed under Gaussian noise. A random force is applied to the mass. A Kalman filter recovers the trajectory from the observations.
+A first-order system $\dot{s} = -\lambda s$ — a scalar state decaying exponentially, observed under Gaussian noise. A Kalman filter recovers the trajectory.
 
 ```rust
-use nalgebra::{SMatrix, matrix, vector};
-use smc_rs::filters::{Filter, StateEstimate};
-use smc_rs::maths::Noise;
-use smc_rs::controllers::Controller;
-use smc_rs::models::{ContinuousLinearSystem, DiscreteLinearSystem};
-use smc_rs::plots::StatePlot;
+use nalgebra::{vector, matrix};
+use ssm_rs::controllers::{Controller, Nontroller};
+use ssm_rs::dynamics::{ContinuousLinearSystem, DiscreteLinearSystem, Dynamics};
+use ssm_rs::noise::{WhiteNoise, Noise};
+use ssm_rs::filters::{Filter, KalmanFilter, StateEstimate};
+use ssm_rs::plots::StatePlot;
 
-fn mass_spring_damper(m: f64, k: f64, c: f64, sp: f64, so: f64) -> ContinuousLinearSystem<2, 1, 1, 1> {
-    let a = matrix![0., 1.; -k/m, -c/m];
-    let b = matrix![0.; 1./m];
-    let h = matrix![0.; 1.];
-    let c = matrix![1., 0.];
-    ContinuousLinearSystem::new(a, b, h, c, Noise::Gaussian(0., sp), Noise::Gaussian(0., so))
-}
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut rng = rand::rng();
-    let dt = 0.1;
-    let (sp, so) = (1., 0.1);
-
-    let system = mass_spring_damper(0.5, 2.16, 0.8, sp, so);
-    let dsystem = DiscreteLinearSystem::from_expm(
-        &system, dt,
-        Controller::Null,
-        Filter::Kalman { q: matrix![sp.powi(2)] * dt, r: matrix![so.powi(2)] },
+fn main() {
+    let continuous_dynamics = ContinuousLinearSystem::new(
+        matrix![-1.],
+        matrix![0.],
+        matrix![1.],
+        matrix![1.],
     );
+    let dt = 0.1;
+    let dynamics = DiscreteLinearSystem::from_expm(&continuous_dynamics, dt);
 
-    let x0 = vector![5., 0.];
-    let prior = StateEstimate::new(vector![0., 0.], SMatrix::from_diagonal_element(1.));
-    let results: Vec<_> = dsystem.run(x0, prior, &mut rng).take(250).collect();
+    let controller = Nontroller;
+    let sp = 0.5;
+    let so = 1.;
+    let process_noise = WhiteNoise::new(sp * dt.sqrt());
+    let observation_noise = WhiteNoise::new(so);
+    let mut rng = rand::rng();
 
-    StatePlot::new("kalman_output.svg").add_run(&results).draw()?;
-    Ok(())
+    let mut x = vector![5.];
+    let filter = KalmanFilter::new(dynamics, matrix![sp*sp*dt], matrix![so*so]);
+    let mut state = StateEstimate::new(x, matrix![1.]);
+    let u = controller.control_law(&x);
+
+    let n = (10. / dt) as usize;
+    for _ in 0..n {
+        x = dynamics.propagate(&x, &u, &process_noise.sample(&mut rng));
+        state = filter.predict(&state, &u);
+        let y = dynamics.observe(&x, &observation_noise.sample(&mut rng));
+        state = filter.update(&state, &y);
+    }
 }
 ```
 
 Run with:
 
 ```
-cargo run --example msd
+cargo run --example damper
 ```
 
-![Mass-spring-damper output](results/kalman_output.svg)
-
----
-
-### Langevin Dynamics
-
-An overdamped Langevin equation — a stochastic model of particle motion under a restoring force and thermal noise.
-
-```
-cargo run --example langevin
-```
-
-![Langevin output](results/langevin.svg)
+![Damper output](damper.svg)
 
 ---
 
@@ -109,10 +108,11 @@ cargo run --example langevin
 
 ```
 src/
-├── models/       # ContinuousLinearSystem, DiscreteLinearSystem, RunIter
-├── filters/      # Kalman filter, StateEstimate
-├── controllers/  # Control laws
-├── maths/        # Matrix exponential, noise sampling
+├── dynamics/     # Dynamics trait, ContinuousLinearSystem, DiscreteLinearSystem
+├── filters/      # Filter trait, KalmanFilter, StateEstimate
+├── controllers/  # Controller trait, Nontroller
+├── noise/        # Noise trait, WhiteNoise, Noiseless
+├── maths/        # Matrix exponential
 ├── plots/        # SVG output via plotters
 └── types/        # Real = f64
 ```

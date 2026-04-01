@@ -1,15 +1,5 @@
-use nalgebra::SVector;
+pub mod nontroller;
+mod traits;
 
-use crate::types::Real;
-
-pub enum Controller<const U: usize> {
-    Null
-}
-
-impl<const U:usize> Controller<U> {
-    pub fn control_law(&self) -> SVector<Real, U> {
-        match self {
-            Self::Null => SVector::zeros()
-        }
-    }
-}
+pub use nontroller::Nontroller;
+pub use traits::Controller;
