@@ -1,6 +1,10 @@
 use nalgebra::{DMatrix, SMatrix, SVector};
 
-use crate::{dynamics::Dynamics, maths::expm, types::Real};
+use crate::{
+    dynamics::{DiscreteDynamics, traits::ContinuousDynamics},
+    maths::expm,
+    types::Real,
+};
 
 pub struct ContinuousLinearSystem<const X: usize, const U: usize, const Y: usize, const Z: usize> {
     a: SMatrix<Real, X, X>,
@@ -22,20 +26,20 @@ impl<const X: usize, const U: usize, const Y: usize, const Z: usize>
     }
 }
 
-impl<const X: usize, const U: usize, const Y: usize, const Z: usize> Dynamics<X, U, Y, Z>
+impl<const X: usize, const U: usize, const Y: usize, const Z: usize> ContinuousDynamics<X, U, Y, Z>
     for ContinuousLinearSystem<X, U, Y, Z>
 {
     fn f(&self, x: &SVector<Real, X>, u: &SVector<Real, U>) -> SVector<Real, X> {
         self.a * x + self.b * u
     }
-    fn f_jacobian(&self, _x: &SVector<Real, X>, _u: &SVector<Real, U>) -> &SMatrix<Real, X, X> {
-        &self.a
+    fn g(&self, x: &SVector<Real, X>) -> SVector<Real, Y> {
+        self.c * x
+    }
+    fn f_jacobian(&self, _x: &SVector<Real, X>, _u: &SVector<Real, U>) -> SMatrix<Real, X, X> {
+        self.a
     }
     fn h_matrix(&self) -> &SMatrix<Real, X, Z> {
         &self.h
-    }
-    fn c_matrix(&self) -> &SMatrix<Real, Y, X> {
-        &self.c
     }
 }
 
@@ -80,21 +84,27 @@ impl<const X: usize, const U: usize, const Y: usize, const Z: usize>
     }
 }
 
-impl<const X: usize, const U: usize, const Y: usize, const Z: usize> Dynamics<X, U, Y, Z>
+impl<const X: usize, const U: usize, const Y: usize, const Z: usize>
+    DiscreteLinearSystem<X, U, Y, Z>
+{
+    pub fn c_matrix(&self) -> &SMatrix<Real, Y, X> {
+        &self.c
+    }
+}
+
+impl<const X: usize, const U: usize, const Y: usize, const Z: usize> DiscreteDynamics<X, U, Y, Z>
     for DiscreteLinearSystem<X, U, Y, Z>
 {
     fn f(&self, x: &SVector<Real, X>, u: &SVector<Real, U>) -> SVector<Real, X> {
         self.a * x + self.b * u
     }
-
-    fn f_jacobian(&self, _x: &SVector<Real, X>, _u: &SVector<Real, U>) -> &SMatrix<Real, X, X> {
-        &self.a
+    fn g(&self, x: &SVector<Real, X>) -> SVector<Real, Y> {
+        self.c * x
     }
-
+    fn f_jacobian(&self, _x: &SVector<Real, X>, _u: &SVector<Real, U>) -> SMatrix<Real, X, X> {
+        self.a
+    }
     fn h_matrix(&self) -> &SMatrix<Real, X, Z> {
         &self.h
-    }
-    fn c_matrix(&self) -> &SMatrix<Real, Y, X> {
-        &self.c
     }
 }

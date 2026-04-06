@@ -1,51 +1,48 @@
 use nalgebra::{SMatrix, SVector};
 
-use crate::{dynamics::Dynamics, types::Real};
+use crate::{
+    dynamics::{DiscreteDynamics, DiscreteLinearSystem},
+    types::Real,
+};
 
 use super::estimate::StateEstimate;
 
-pub trait Filter<D: Dynamics<X, U, Y, Z>, const X: usize, const U: usize, const Y: usize, const Z: usize> {
-    fn predict(
-        &self,
-        state: &StateEstimate<X>,
-        u: &SVector<Real, U>,
-    ) -> StateEstimate<X>;
-    fn update(
-        &self,
-        state: &StateEstimate<X>,
-        y: &SVector<Real, Y>,
-    ) -> StateEstimate<X>;
+pub trait Filter<
+    D: DiscreteDynamics<X, U, Y, Z>,
+    const X: usize,
+    const U: usize,
+    const Y: usize,
+    const Z: usize,
+>
+{
+    fn predict(&self, state: &StateEstimate<X>, u: &SVector<Real, U>) -> StateEstimate<X>;
+    fn update(&self, state: &StateEstimate<X>, y: &SVector<Real, Y>) -> StateEstimate<X>;
     fn dynamics(&self) -> D;
 }
 
-pub struct KalmanFilter<D, const X: usize, const U:usize, const Y: usize, const Z: usize>
-where D :Dynamics<X, U, Y, Z> + Copy,
-{
-    dynamics: D,
+pub struct KalmanFilter<const X: usize, const U: usize, const Y: usize, const Z: usize> {
+    dynamics: DiscreteLinearSystem<X, U, Y, Z>,
     q: SMatrix<Real, Z, Z>,
     r: SMatrix<Real, Y, Y>,
 }
 
-impl<D, const X: usize, const U:usize, const Y: usize, const Z: usize> KalmanFilter<D, X, U, Y, Z>
-where D :Dynamics<X, U, Y, Z> + Copy,
-{
-    pub fn new(dynamics: D, q: SMatrix<Real, Z, Z>, r: SMatrix<Real, Y, Y>) -> Self {
+impl<const X: usize, const U: usize, const Y: usize, const Z: usize> KalmanFilter<X, U, Y, Z> {
+    pub fn new(
+        dynamics: DiscreteLinearSystem<X, U, Y, Z>,
+        q: SMatrix<Real, Z, Z>,
+        r: SMatrix<Real, Y, Y>,
+    ) -> Self {
         Self { dynamics, q, r }
     }
 }
 
-impl<D,const X: usize, const U: usize, const Y: usize, const Z: usize> Filter<D, X, U, Y, Z>
-    for KalmanFilter<D, X, U, Y, Z>
-where D :Dynamics<X, U, Y, Z> + Copy,
+impl<const X: usize, const U: usize, const Y: usize, const Z: usize>
+    Filter<DiscreteLinearSystem<X, U, Y, Z>, X, U, Y, Z> for KalmanFilter<X, U, Y, Z>
 {
-    fn dynamics(&self) -> D {
+    fn dynamics(&self) -> DiscreteLinearSystem<X, U, Y, Z> {
         self.dynamics
     }
-    fn predict(
-        &self,
-        state: &StateEstimate<X>,
-        u: &SVector<Real, U>,
-    ) -> StateEstimate<X> {
+    fn predict(&self, state: &StateEstimate<X>, u: &SVector<Real, U>) -> StateEstimate<X> {
         let dynamics = self.dynamics();
         // predict
         let m = dynamics.f(state.m(), u);
@@ -54,11 +51,7 @@ where D :Dynamics<X, U, Y, Z> + Copy,
             + dynamics.h_matrix() * self.q * dynamics.h_matrix().transpose();
         StateEstimate::new(m, p)
     }
-    fn update(
-        &self,
-        state: &StateEstimate<X>,
-        y: &SVector<Real, Y>,
-    ) -> StateEstimate<X> {
+    fn update(&self, state: &StateEstimate<X>, y: &SVector<Real, Y>) -> StateEstimate<X> {
         let dynamics = self.dynamics();
         // Update
         let e = y - dynamics.c_matrix() * state.m();

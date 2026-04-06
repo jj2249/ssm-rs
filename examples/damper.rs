@@ -1,53 +1,50 @@
-use nalgebra::{vector, matrix};
+use nalgebra::{matrix, vector};
 
 use ssm_rs::controllers::{Controller, Nontroller};
-use ssm_rs::dynamics::{ContinuousLinearSystem, DiscreteLinearSystem, Dynamics};
-use ssm_rs::noise::{WhiteNoise, Noise};
+use ssm_rs::dynamics::{
+    ContinuousDynamics, ContinuousLinearSystem, DiscreteDynamics, DiscreteLinearSystem,
+};
 use ssm_rs::filters::{Filter, KalmanFilter, StateEstimate};
-
 use ssm_rs::plots::StatePlot;
+use ssm_rs::noise::{Noise, WhiteNoise};
 
 fn main() {
-    let continuous_dynamics = ContinuousLinearSystem::new(
-        matrix![-1.],
-        matrix![0.],
-        matrix![1.],
-        matrix![1.],
-    );
+    let continuous_dynamics =
+        ContinuousLinearSystem::new(matrix![-1.], matrix![0.], matrix![1.], matrix![1.]);
     let dt = 0.1;
     let dynamics = DiscreteLinearSystem::from_expm(&continuous_dynamics, dt);
 
     let controller = Nontroller;
     let sp = 0.5;
     let so = 1.;
+
     let process_noise = WhiteNoise::new(sp * dt.sqrt());
     let observation_noise = WhiteNoise::new(so);
     let mut rng = rand::rng();
-    
+
     let mut x = vector![5.];
     let mut trajectory = vec![x];
     let mut observations = vec![dynamics.observe(&x, &observation_noise.sample(&mut rng))];
 
-    let filter = KalmanFilter::new(dynamics, matrix![sp*sp*dt], matrix![so*so]);
+    let filter = KalmanFilter::new(dynamics, matrix![sp * sp * dt], matrix![so * so]);
     let mut state = StateEstimate::new(x, matrix![1.]);
 
     let mut states = vec![state.clone()];
-    
+
     let u = controller.control_law(&x);
 
     let t = 10.;
     let n = (t / dt) as usize;
 
     for _ in 0..n {
-        
-        x = dynamics.propagate(&x, &u, &process_noise.sample(&mut rng));
+        x = continuous_dynamics.step_rk4(&x, &u, &process_noise.sample(&mut rng), dt);
         trajectory.push(x);
-        
+
         state = filter.predict(&state, &u);
-        
-        let y = dynamics.observe(&x, &observation_noise.sample(&mut rng));
+
+        let y = continuous_dynamics.observe(&x, &observation_noise.sample(&mut rng));
         observations.push(y);
-        
+
         state = filter.update(&state, &y);
         states.push(state);
     }
