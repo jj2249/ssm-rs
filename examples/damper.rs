@@ -5,8 +5,8 @@ use ssm_rs::dynamics::{
     ContinuousDynamics, ContinuousLinearSystem, DiscreteDynamics, DiscreteLinearSystem,
 };
 use ssm_rs::filters::{Filter, KalmanFilter, StateEstimate};
-use ssm_rs::plots::StatePlot;
 use ssm_rs::noise::{Noise, WhiteNoise};
+use ssm_rs::plots::StatePlot;
 
 fn main() {
     let continuous_dynamics =
@@ -18,8 +18,8 @@ fn main() {
     let sp = 0.5;
     let so = 1.;
 
-    let process_noise = WhiteNoise::new(sp * dt.sqrt());
-    let observation_noise = WhiteNoise::new(so);
+    let process_noise = WhiteNoise::new(vector![0.], matrix![sp * sp * dt]);
+    let observation_noise = WhiteNoise::new(vector![0.], matrix![so * so]);
     let mut rng = rand::rng();
 
     let mut x = vector![5.];

@@ -1,7 +1,7 @@
-use nalgebra::{ SMatrix, SVector, matrix, vector};
+use nalgebra::{SMatrix, SVector, matrix, vector};
 
 use ssm_rs::controllers::{Controller, Nontroller};
-use ssm_rs::dynamics::{ContinuousDynamics};
+use ssm_rs::dynamics::ContinuousDynamics;
 use ssm_rs::noise::{Noise, WhiteNoise};
 use ssm_rs::plots::StatePlot;
 
@@ -20,7 +20,10 @@ const Z: usize = 1;
 
 impl ContinuousDynamics<X, U, Y, Z> for Pendulum {
     fn f(&self, x: &SVector<Real, X>, u: &SVector<Real, U>) -> SVector<Real, X> {
-        vector![x[1], -self.g * Real::sin(x[0]) / self.l - self.b * x[1] + u[0]]
+        vector![
+            x[1],
+            -self.g * Real::sin(x[0]) / self.l - self.b * x[1] + u[0]
+        ]
     }
     fn f_jacobian(&self, x: &SVector<Real, X>, _u: &SVector<Real, U>) -> SMatrix<Real, X, X> {
         matrix![0., 1.; -self.g * x[0].cos(), -self.b]
@@ -34,23 +37,26 @@ impl ContinuousDynamics<X, U, Y, Z> for Pendulum {
 }
 
 fn main() {
-
     let dt: f64 = 0.01;
     let controller = Nontroller;
-    let sp = 0.01;
-    let so = 0.1;
+    let sp = 0.1;
+    let so = 0.01;
 
-    let process_noise = WhiteNoise::new(sp * dt.sqrt());
-    let observation_noise = WhiteNoise::new(so);
+    let process_noise = WhiteNoise::new(vector![0.], matrix![sp * sp * dt]);
+    let observation_noise = WhiteNoise::new(vector![0.], matrix![so * so]);
     let mut rng = rand::rng();
 
     let mut x = vector![0., -1.];
     let mut trajectory = vec![x];
 
-    let dynamics = Pendulum {g:9.81, b:0.3, l:1., h:matrix![1.; 0.]};
+    let dynamics = Pendulum {
+        g: 9.81,
+        b: 0.6,
+        l: 1.,
+        h: matrix![1.; 0.],
+    };
 
     let mut observations = vec![dynamics.observe(&x, &observation_noise.sample(&mut rng))];
-
 
     let u = controller.control_law(&x);
 
@@ -58,8 +64,6 @@ fn main() {
     let n = (t / dt) as usize;
 
     for _ in 0..n {
-
-
         x = dynamics.step_rk4(&x, &u, &process_noise.sample(&mut rng), dt);
         trajectory.push(x);
 
