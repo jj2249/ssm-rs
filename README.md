@@ -1,148 +1,182 @@
 # ssm-rs
 
-A Rust library for simulating, filtering, and controlling linear stochastic dynamical systems. Built as a clean, type-safe implementation of classical state-space methods.
+State Space Models in Rust.
 
 ## Overview
 
-`ssm-rs` models linear, time-invariant, discrete-time systems with the following dynamics:
-$$x_{t+1} = Ax_t + Bu_t + Hz_t, \quad y_t = Cx_t + w_t$$
-where $x_t$ is the latent system state, $u_t$ is the control law, $z_t$ is the modelled "driving" noise, $y_t$ is the observation, and $w_t$ is the observation noise.
+`ssm-rs` models stochastic, non-linear state-space systems in continuous time:
+$$\begin{aligned}
+d{X}_t &= f(X_t, U_t)dt + HdZ_t \\
+Y_t &= g(X_t) + W_t
+\end{aligned}$$
+or their discrete time equivalent
 
-A discrete-time system can be created directly with `DiscreteLinearSystem::new`, or from a continuous-time system via `DiscreteLinearSystem::from_expm`.
+$$\begin{aligned}
+    {X}_{k+1} &= f(X_k, U_k) + HZ_k \\
+    Y_k &= g(X_k) + W_k
+\end{aligned}$$
 
-### Discretisation
+The standard linear models are special cases of these systems
+$$\begin{aligned}
+f(X_t, U_t) &= A_tX_t+B_tU_t\\
+g(X_t) &= C_tX_t
+\end{aligned}$$
 
-`DiscreteLinearSystem::from_expm` converts a continuous-time system to discrete time. It uses a Padé approximation with scaling and squaring (analogous to `scipy.linalg.expm`) to solve the noiseless system exactly via the matrix exponential:
+## Useful features (so far)
+### A friendly api for defining models
+Includes:
+- Static checks on dimension. No silly bugs.
+- Basic traits that allow for the definition of custom model components, for example: analytical Jacobians, new types of noise, new types of filter.
+
+### Exact discretisation of deterministic continuous-time linear systems
+
+`DiscreteLinearSystem::from_expm` converts a continuous-time linear system to discrete time. It uses a Padé approximation with scaling and squaring to solve the noiseless system exactly in the case of a zero-order hold.
 
 $$\exp \Bigr(\begin{bmatrix}
  A & B \\
  0 & 0 \\
-\end{bmatrix}dt\Bigr) = \begin{bmatrix}
-    e^{Adt} & \int_0^{dt} e^{As}Bds \\ 0 & I
+\end{bmatrix}t\Bigr) = \begin{bmatrix}
+    e^{At} & \int_0^{t} e^{As}Bds \\ 0 & I
 \end{bmatrix}$$
-$$x_t = e^{Adt}x_0 + \int_0^{dt} e^{As}Bds \cdot u$$
+$$x_t = e^{At}x_0 + \int_0^{t} e^{As}Bds \cdot u$$
 
-The noise sources are discretised analytically.
+### Stochastic models
+The stochastic integral process, $I_t = \int_0^{t} e^{As}dZs$, is generally more complicated. The model requires direct implementation of the integrated process via samples from the marginal distribution. Some basic cases are readily available:
+1. Brownian motion -> Gaussian increments
+2. Variance Gamma -> Gaussian mixture representation (not yet implemented)
 
-### Trait-based design
+### Simulation of linear & non-linear systems
+Currently using the explicit RK4 method to forward simulate systems.
 
-The library is built around four core traits, which makes it straightforward to add new implementations:
+### Kalman filtering for linear Gaussian system
+A numerically stable implementation of the Kalman filter
 
-- **`Dynamics<X, U, Y, Z>`** — defines how the state evolves (`f`, `propagate`) and what is observed (`observe`). Implemented by `ContinuousLinearSystem` and `DiscreteLinearSystem`.
-- **`Filter<D, X, U, Y, Z>`** — defines a `predict`/`update` cycle over a `StateEstimate`. Implemented by `KalmanFilter`.
-- **`Controller<X, U>`** — maps a state to a control input. Implemented by `Nontroller` (zero input).
-- **`Noise<X>`** — samples a noise vector. Implemented by `WhiteNoise` and `Noiseless`.
+### Trajectory plots
+Helpful functionality for plotting state trajectories and the results of filtering
 
-The dynamics, filter, controller, and noise are constructed independently and composed at simulation time, giving full flexibility over what gets paired with what.
+## Useful features (upcoming)
+### Non-Gaussian noise processes
+- **Variance-gamma noise** — allows modelling of higher order moments
+- **$\alpha$-stable noise** — very general noise model
 
-### Simulating the system
+### Non-linear and non-Gaussian filters
+- **Extended Kalman filter (EKF)** — linearisation of system around current estimate, either analytically or with autodiff
+- **Particle filter** — state filtering for non-linear / non-Gaussian system
+- **Marginal particle filter** — Rao-Blackwellisation for better inference in conditionally Gaussian structures
+- **Parameter estimation** - ML methods, EM methods, particle MCMC
 
-Simulation is a manual loop — call `dynamics.propagate`, then `filter.predict` and `filter.update` at each step:
+### Smoothers
+- **RTS smoother** — Rauch-Tung-Striebel smoother for linear systems
 
-```rust
-for _ in 0..n {
-    x = dynamics.propagate(&x, &u, &process_noise.sample(&mut rng));
-    state = filter.predict(&state, &u);
-    let y = dynamics.observe(&x, &observation_noise.sample(&mut rng));
-    state = filter.update(&state, &y);
-}
-```
+### Controllers
+- **State feedback / LQR** — linear-quadratic regulator, PD, PID
+- **Model predictive control (MPC)** — receding-horizon optimisation with constraints
 
 ## Examples
 
-### Linear Damper
-
-A first-order system $\dot{s} = -\lambda s$ — a scalar state decaying exponentially, observed under Gaussian noise. A Kalman filter recovers the trajectory.
-
+### Langevin
+A basic example of a 1D langevin model with Brownian noise.
+$$\begin{aligned}
+    d\dot{X}_t &= \frac{\lambda}{m} \dot{X}_tdt + \frac{1}{m}dZ_t\\
+    dX_t &= \dot{X}_tdt
+\end{aligned}$$
 ```rust
-use nalgebra::{vector, matrix};
+use nalgebra::{matrix, vector, SMatrix};
+
+use ssm_rs::types::Real;
 use ssm_rs::controllers::{Controller, Nontroller};
-use ssm_rs::dynamics::{ContinuousLinearSystem, DiscreteLinearSystem, Dynamics};
-use ssm_rs::noise::{WhiteNoise, Noise};
+use ssm_rs::dynamics::{
+    ContinuousDynamics, ContinuousLinearSystem, DiscreteDynamics, DiscreteLinearSystem,
+};
 use ssm_rs::filters::{Filter, KalmanFilter, StateEstimate};
+use ssm_rs::noise::{Noise, WhiteNoise};
 use ssm_rs::plots::StatePlot;
 
 fn main() {
+    let m = 1.;
+    let c = -1.;
     let continuous_dynamics = ContinuousLinearSystem::new(
-        matrix![-1.],
-        matrix![0.],
-        matrix![1.],
-        matrix![1.],
+        matrix![0., 1.; 0., c/m],
+        matrix![0.; 0.],
+        matrix![0.; 1./m],
+        matrix![1., 0.],
     );
-    let dt = 0.1;
+    let dt = 0.01;
     let dynamics = DiscreteLinearSystem::from_expm(&continuous_dynamics, dt);
 
     let controller = Nontroller;
-    let sp = 0.5;
-    let so = 1.;
-    let process_noise = WhiteNoise::new(sp * dt.sqrt());
-    let observation_noise = WhiteNoise::new(so);
+    let sp = 1.;
+    let so = 0.1;
+
+    let process_noise = WhiteNoise::new(vector![0.], matrix![sp * sp * dt]);
+    let observation_noise = WhiteNoise::new(vector![0.], matrix![so * so]);
     let mut rng = rand::rng();
 
-    let mut x = vector![5.];
-    let filter = KalmanFilter::new(dynamics, matrix![sp*sp*dt], matrix![so*so]);
-    let mut state = StateEstimate::new(x, matrix![1.]);
+    let mut x = vector![0., 0.];
+    let mut trajectory = vec![x];
+    let mut observations = vec![dynamics.observe(&x, &observation_noise.sample(&mut rng))];
+
+    let filter = KalmanFilter::new(dynamics, matrix![sp * sp * dt], matrix![so * so]);
+    let mut state = StateEstimate::new(x, SMatrix::<Real, 2, 2>::identity());
+    let mut states = vec![state.clone()];
+
     let u = controller.control_law(&x);
 
-    let n = (10. / dt) as usize;
+    let n = (2. / dt) as usize;
     for _ in 0..n {
-        x = dynamics.propagate(&x, &u, &process_noise.sample(&mut rng));
+        x = continuous_dynamics.step_rk4(&x, &u, &process_noise.sample(&mut rng), dt);
+        trajectory.push(x);
         state = filter.predict(&state, &u);
-        let y = dynamics.observe(&x, &observation_noise.sample(&mut rng));
+        let y = continuous_dynamics.observe(&x, &observation_noise.sample(&mut rng));
+        observations.push(y);
         state = filter.update(&state, &y);
+        states.push(state);
     }
+    let means: Vec<_> = states.iter().map(|s| s.m().clone()).collect();
+    let vars: Vec<_> = states.iter().map(|s| s.p().clone().diagonal()).collect();
+    StatePlot::<2, 1>::new("langevin.svg")
+        .add_markers("obs", &observations)
+        .add_line("trajectory", &trajectory)
+        .add_confidence_band("var", &means, &vars, 2.)
+        .add_line("mean", &means)
+        .draw()
+        .unwrap();
 }
 ```
 
 Run with:
 
 ```
-cargo run --example damper
+cargo run --example langevin
 ```
-
-![Damper output](damper.svg)
+![Langevin output](langevin.svg)
 
 ---
 
-## Architecture
+### Nonlinear Pendulum
+
+Demonstrates implementing the `ContinuousDynamics` trait on a custom struct to model a nonlinear system. No filter is used — the example shows forward simulation of a pendulum with gravity, damping, and an analytical Jacobian.
+
+```rust
+struct Pendulum { g: Real, b: Real, l: Real, h: SMatrix<Real, X, Z> }
+
+impl ContinuousDynamics<X, U, Y, Z> for Pendulum {
+    fn f(&self, x: &SVector<Real, X>, u: &SVector<Real, U>) -> SVector<Real, X> {
+        vector![
+            x[1],
+            -self.g * Real::sin(x[0]) / self.l - self.b * x[1] + u[0]
+        ]
+    }
+    // ...
+}
+```
+
+Run with:
 
 ```
-src/
-├── dynamics/     # Dynamics trait, ContinuousLinearSystem, DiscreteLinearSystem
-├── filters/      # Filter trait, KalmanFilter, StateEstimate
-├── controllers/  # Controller trait, Nontroller
-├── noise/        # Noise trait, WhiteNoise, Noiseless
-├── maths/        # Matrix exponential
-├── plots/        # SVG output via plotters
-└── types/        # Real = f64
+cargo run --example pendulum
 ```
-
-### Generic dimensions
-
-The library uses Rust const generics to track system dimensions at compile time:
-
-| Parameter | Meaning |
-|-----------|---------|
-| `X` | State dimension |
-| `U` | Input dimension |
-| `Z` | Process noise dimension |
-| `Y` | Observation dimension |
-
-This means dimension mismatches are caught at compile time rather than at runtime.
-
-### Kalman filter
-
-The filter implements the standard predict–update cycle using the Joseph form for the covariance update:
-
-**Predict:**
-$$m_{k|k-1} = A m_{k-1} + B u_k, \quad P_{k|k-1} = A P_{k-1} A^\top + H Q H^\top$$
-
-**Update:**
-$$e = y_k - C m_{k|k-1}, \quad S = C P_{k|k-1} C^\top + R$$
-$$K = P_{k|k-1} C^\top S^{-1}$$
-$$m_k = m_{k|k-1} + K e, \quad P_k = (I - KC) P_{k|k-1} (I - KC)^\top + K R K^\top$$
-
-
+![Pendulum output](pendulum.svg)
 
 ## Dependencies
 
@@ -153,23 +187,3 @@ $$m_k = m_{k|k-1} + K e, \quad P_k = (I - KC) P_{k|k-1} (I - KC)^\top + K R K^\t
 | [`rand`](https://docs.rs/rand) | Random number generation |
 | [`rand_distr`](https://docs.rs/rand_distr) | Gaussian sampling |
 
-## Roadmap
-
-I would like to implement the following features:
-
-### Non-Gaussian noise
-- **Variance-gamma process** — heavier tails than Gaussian, simple simulation
-- **$\alpha$-stable laws** — very general applicability
-
-### Nonlinear and non-Gaussian filters
-- **Extended Kalman filter (EKF)** — autodiff for linearisation of system around current estimate
-- **Particle filter** — general sequential monte-carlo schemes with various proposals 
-- **Marginal particle filter** — Rao-Blackwellised variant that marginalises out the linear-Gaussian components for improved efficiency
-- **Parameter estimation** - ML methods, EM methods, particle MCMC
-
-### Smoothers
-- **RTS smoother** — Rauch-Tung-Striebel backward pass to recover smoothed estimates using the full observation sequence
-
-### Controllers
-- **State feedback / LQR** — linear-quadratic regulator; optimal state feedback for linear systems with quadratic cost
-- **Model predictive control (MPC)** — receding-horizon optimisation with constraints

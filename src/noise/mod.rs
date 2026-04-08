@@ -1,7 +1,7 @@
-mod white;
 mod noiseless;
 mod traits;
+mod white;
 
-pub use white::WhiteNoise;
 pub use noiseless::Noiseless;
 pub use traits::Noise;
+pub use white::WhiteNoise;

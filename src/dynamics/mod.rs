@@ -2,4 +2,4 @@ mod linear;
 mod traits;
 
 pub use linear::{ContinuousLinearSystem, DiscreteLinearSystem};
-pub use traits::Dynamics;
+pub use traits::{ContinuousDynamics, DiscreteDynamics};
