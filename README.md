@@ -5,6 +5,7 @@ State Space Models in Rust.
 ## Overview
 
 `ssm-rs` models stochastic, non-linear state-space systems in continuous time:
+
 $$\begin{aligned}
 d{X}_t &= f(X_t, U_t)dt + HdZ_t \\
 Y_t &= g(X_t) + W_t
@@ -17,6 +18,7 @@ $$\begin{aligned}
 \end{aligned}$$
 
 The standard linear models are special cases of these systems
+
 $$\begin{aligned}
 f(X_t, U_t) &= A_tX_t+B_tU_t\\
 g(X_t) &= C_tX_t
@@ -180,10 +182,10 @@ cargo run --example pendulum
 
 ## Dependencies
 
-| Crate | Purpose |
-|-------|---------|
-| [`nalgebra`](https://nalgebra.org) | Statically-sized matrices and vectors |
-| [`plotters`](https://plotters-rs.github.io) | SVG rendering |
-| [`rand`](https://docs.rs/rand) | Random number generation |
-| [`rand_distr`](https://docs.rs/rand_distr) | Gaussian sampling |
+| Crate |
+|-------|
+| [`nalgebra`](https://nalgebra.org) |
+| [`plotters`](https://plotters-rs.github.io) |
+| [`rand`](https://docs.rs/rand) |
+| [`rand_distr`](https://docs.rs/rand_distr) |
 
