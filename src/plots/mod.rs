@@ -68,17 +68,17 @@ impl<const N: usize, const M: usize> StatePlot<N, M> {
 
     pub fn draw(self) -> Result<(), Box<dyn std::error::Error>> {
         let mut n_points = 0usize;
-        let mut y_min = f64::INFINITY;
-        let mut y_max = f64::NEG_INFINITY;
+        let mut y_min = [f64::INFINITY; N];
+        let mut y_max = [f64::NEG_INFINITY; N];
 
         for s in &self.series {
             match s {
                 SeriesKind::Line { data, .. } => {
                     n_points = n_points.max(data.len());
                     for v in data {
-                        for &val in v.iter() {
-                            y_min = y_min.min(val);
-                            y_max = y_max.max(val);
+                        for c in 0..N {
+                            y_min[c] = y_min[c].min(v[c]);
+                            y_max[c] = y_max[c].max(v[c]);
                         }
                     }
                 }
@@ -91,60 +91,70 @@ impl<const N: usize, const M: usize> StatePlot<N, M> {
                     n_points = n_points.max(means.len());
                     for (m, s) in means.iter().zip(vars.iter()) {
                         for c in 0..N {
-                            y_min = y_min.min(m[c] - k * s[c].sqrt());
-                            y_max = y_max.max(m[c] + k * s[c].sqrt());
+                            y_min[c] = y_min[c].min(m[c] - k * s[c].sqrt());
+                            y_max[c] = y_max[c].max(m[c] + k * s[c].sqrt());
                         }
                     }
                 }
                 SeriesKind::Markers { data, .. } => {
                     n_points = n_points.max(data.len());
                     for v in data {
-                        for &val in v.iter() {
-                            y_min = y_min.min(val);
-                            y_max = y_max.max(val);
+                        for c in 0..M.min(N) {
+                            y_min[c] = y_min[c].min(v[c]);
+                            y_max[c] = y_max[c].max(v[c]);
                         }
                     }
                 }
             }
         }
 
-        let root = SVGBackend::new(&self.filename, (800, 600)).into_drawing_area();
+        let root =
+            SVGBackend::new(&self.filename, (800, 300 * N as u32)).into_drawing_area();
         root.fill(&WHITE)?;
 
-        let mut chart = ChartBuilder::on(&root)
-            .margin(10)
-            .set_label_area_size(LabelAreaPosition::Left, 40)
-            .set_label_area_size(LabelAreaPosition::Bottom, 40)
-            .caption("State trajectory", ("sans-serif", 40))
-            .build_cartesian_2d(0..n_points, y_min..y_max)?;
+        let panels = root.split_evenly((N, 1));
 
-        chart.configure_mesh().x_desc("t").y_desc("value").draw()?;
+        for (component, panel) in panels.iter().enumerate() {
+            let lo = y_min[component];
+            let hi = y_max[component];
+            // guard against flat signals
+            let (lo, hi) = if (hi - lo).abs() < 1e-12 {
+                (lo - 1.0, hi + 1.0)
+            } else {
+                (lo, hi)
+            };
 
-        let mut color_idx = 0usize;
-        for s in &self.series {
-            match s {
-                SeriesKind::Line { label, data } => {
-                    for component in 0..N {
+            let mut chart = ChartBuilder::on(panel)
+                .margin(10)
+                .set_label_area_size(LabelAreaPosition::Left, 40)
+                .set_label_area_size(LabelAreaPosition::Bottom, 40)
+                .caption(format!("x{}", component + 1), ("sans-serif", 20))
+                .build_cartesian_2d(0..n_points, lo..hi)?;
+
+            chart.configure_mesh().x_desc("t").y_desc("value").draw()?;
+
+            let mut color_idx = 0usize;
+            for s in &self.series {
+                match s {
+                    SeriesKind::Line { label, data } => {
                         let ci = color_idx;
                         chart
                             .draw_series(LineSeries::new(
                                 data.iter().enumerate().map(|(i, v)| (i, v[component])),
                                 &Palette99::pick(ci),
                             ))?
-                            .label(format!("{} x{}", label, component + 1))
+                            .label(label.as_str())
                             .legend(move |(x, y)| {
                                 PathElement::new([(x, y), (x + 20, y)], Palette99::pick(ci))
                             });
                         color_idx += 1;
                     }
-                }
-                SeriesKind::Band {
-                    label,
-                    data: means,
-                    band: variances,
-                    k,
-                } => {
-                    for component in 0..N {
+                    SeriesKind::Band {
+                        label,
+                        data: means,
+                        band: variances,
+                        k,
+                    } => {
                         let ci = color_idx;
                         let k = *k;
                         chart
@@ -158,7 +168,7 @@ impl<const N: usize, const M: usize> StatePlot<N, M> {
                                     )
                                 },
                             ))?
-                            .label(format!("{} x{}", label, component + 1))
+                            .label(label.as_str())
                             .legend(move |(x, y)| {
                                 Rectangle::new(
                                     [(x, y - 5), (x + 20, y + 5)],
@@ -167,27 +177,29 @@ impl<const N: usize, const M: usize> StatePlot<N, M> {
                             });
                         color_idx += 1;
                     }
-                }
-                SeriesKind::Markers { label, data } => {
-                    for component in 0..M {
-                        let ci = color_idx;
-                        chart
-                            .draw_series(data.iter().enumerate().map(|(i, v)| {
-                                Cross::new((i, v[component]), 2, Palette99::pick(ci))
-                            }))?
-                            .label(format!("{} x{}", label, component + 1))
-                            .legend(move |(x, y)| Cross::new((x + 10, y), 5, Palette99::pick(ci)));
+                    SeriesKind::Markers { label, data } => {
+                        if component < M {
+                            let ci = color_idx;
+                            chart
+                                .draw_series(data.iter().enumerate().map(|(i, v)| {
+                                    Cross::new((i, v[component]), 2, Palette99::pick(ci))
+                                }))?
+                                .label(label.as_str())
+                                .legend(move |(x, y)| {
+                                    Cross::new((x + 10, y), 5, Palette99::pick(ci))
+                                });
+                        }
                         color_idx += 1;
                     }
                 }
             }
-        }
 
-        chart
-            .configure_series_labels()
-            .border_style(BLACK)
-            .background_style(WHITE.mix(0.8))
-            .draw()?;
+            chart
+                .configure_series_labels()
+                .border_style(BLACK)
+                .background_style(WHITE.mix(0.8))
+                .draw()?;
+        }
 
         root.present()?;
         Ok(())
