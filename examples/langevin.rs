@@ -1,6 +1,5 @@
-use nalgebra::{matrix, vector, SMatrix};
+use nalgebra::{SMatrix, matrix, vector};
 
-use ssm_rs::types::Real;
 use ssm_rs::controllers::{Controller, Nontroller};
 use ssm_rs::dynamics::{
     ContinuousDynamics, ContinuousLinearSystem, DiscreteDynamics, DiscreteLinearSystem,
@@ -8,20 +7,20 @@ use ssm_rs::dynamics::{
 use ssm_rs::filters::{Filter, KalmanFilter, StateEstimate};
 use ssm_rs::noise::{Noise, WhiteNoise};
 use ssm_rs::plots::StatePlot;
+use ssm_rs::types::Real;
 
 fn main() {
     let m = 1.;
     let c = -1.;
-    let continuous_dynamics =
-        ContinuousLinearSystem::new(
-            matrix![
-                0., 1.;
-                0., c/m;
-                ],
-            matrix![0.;0.],
-            matrix![0.;1./m;],
-            matrix![1.,0.]
-        );
+    let continuous_dynamics = ContinuousLinearSystem::new(
+        matrix![
+        0., 1.;
+        0., c/m;
+        ],
+        matrix![0.;0.],
+        matrix![0.;1./m;],
+        matrix![1., 0.],
+    );
     let dt = 0.01;
     let dynamics = DiscreteLinearSystem::from_expm(&continuous_dynamics, dt);
 
@@ -33,7 +32,7 @@ fn main() {
     let observation_noise = WhiteNoise::new(vector![0.], matrix![so * so]);
     let mut rng = rand::rng();
 
-    let mut x = vector![0.,0.];
+    let mut x = vector![0., 0.];
     let mut trajectory = vec![x];
     let mut observations = vec![dynamics.observe(&x, &observation_noise.sample(&mut rng))];
 

@@ -108,8 +108,7 @@ impl<const N: usize, const M: usize> StatePlot<N, M> {
             }
         }
 
-        let root =
-            SVGBackend::new(&self.filename, (800, 300 * N as u32)).into_drawing_area();
+        let root = SVGBackend::new(&self.filename, (800, 300 * N as u32)).into_drawing_area();
         root.fill(&WHITE)?;
 
         let panels = root.split_evenly((N, 1));

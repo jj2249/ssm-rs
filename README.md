@@ -39,8 +39,10 @@ $$\exp \Bigr(\begin{bmatrix}
  A & B \\
  0 & 0 \\
 \end{bmatrix}t\Bigr) = \begin{bmatrix}
-    e^{At} & \int_0^{t} e^{As}Bds \\ 0 & I
+    e^{At} & \int_0^{t} e^{As}Bds\\
+    0 & I
 \end{bmatrix}$$
+
 $$x_t = e^{At}x_0 + \int_0^{t} e^{As}Bds \cdot u$$
 
 ### Stochastic models
