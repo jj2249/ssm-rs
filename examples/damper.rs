@@ -5,7 +5,8 @@ use ssm_rs::dynamics::{
     ContinuousDynamics, ContinuousLinearSystem, DiscreteDynamics, DiscreteLinearSystem,
 };
 use ssm_rs::filters::{Filter, KalmanFilter, StateEstimate};
-use ssm_rs::noise::{Noise, WhiteNoise};
+use rand_distr::Distribution;
+use ssm_rs::noise::{BrownianNoise, Gaussian, NoiseProcess};
 use ssm_rs::plots::StatePlot;
 
 fn main() {
@@ -18,8 +19,8 @@ fn main() {
     let sp = 0.5;
     let so = 1.;
 
-    let process_noise = WhiteNoise::new(vector![0.], matrix![sp * sp * dt]);
-    let observation_noise = WhiteNoise::new(vector![0.], matrix![so * so]);
+    let process_noise = BrownianNoise::new(vector![0.], matrix![sp * sp]);
+    let observation_noise = Gaussian::new(vector![0.], matrix![so * so]);
     let mut rng = rand::rng();
 
     let mut x = vector![5.];
@@ -37,7 +38,7 @@ fn main() {
     let n = (t / dt) as usize;
 
     for _ in 0..n {
-        x = continuous_dynamics.step_rk4(&x, &u, &process_noise.sample(&mut rng), dt);
+        x = continuous_dynamics.step_rk4(&x, &u, &process_noise.sample(dt, &mut rng), dt);
         trajectory.push(x);
 
         state = filter.predict(&state, &u);
