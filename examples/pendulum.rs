@@ -2,7 +2,8 @@ use nalgebra::{SMatrix, SVector, matrix, vector};
 
 use ssm_rs::controllers::{Controller, Nontroller};
 use ssm_rs::dynamics::ContinuousDynamics;
-use ssm_rs::noise::{Noise, WhiteNoise};
+use rand_distr::Distribution;
+use ssm_rs::noise::{BrownianNoise, Gaussian, NoiseProcess};
 use ssm_rs::plots::StatePlot;
 
 use ssm_rs::types::Real;
@@ -42,8 +43,8 @@ fn main() {
     let sp = 0.1;
     let so = 0.01;
 
-    let process_noise = WhiteNoise::new(vector![0.], matrix![sp * sp * dt]);
-    let observation_noise = WhiteNoise::new(vector![0.], matrix![so * so]);
+    let process_noise = BrownianNoise::new(vector![0.], matrix![sp * sp * dt]);
+    let observation_noise = Gaussian::new(vector![0.], matrix![so * so]);
     let mut rng = rand::rng();
 
     let mut x = vector![0., -1.];
@@ -64,7 +65,7 @@ fn main() {
     let n = (t / dt) as usize;
 
     for _ in 0..n {
-        x = dynamics.step_rk4(&x, &u, &process_noise.sample(&mut rng), dt);
+        x = dynamics.step_rk4(&x, &u, &process_noise.sample(dt, &mut rng), dt);
         trajectory.push(x);
 
         let y = dynamics.observe(&x, &observation_noise.sample(&mut rng));
