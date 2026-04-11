@@ -7,7 +7,7 @@ use crate::types::Real;
 #[derive(Debug, Clone, Copy)]
 pub enum PdfError {
     UndefinedPdf,
-    NotImplemented
+    NotImplemented,
 }
 
 pub trait NoiseProcess<const N: usize> {

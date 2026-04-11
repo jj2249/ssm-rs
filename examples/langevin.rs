@@ -1,11 +1,11 @@
 use nalgebra::{SMatrix, matrix, vector};
 
+use rand_distr::Distribution;
 use ssm_rs::controllers::{Controller, Nontroller};
 use ssm_rs::dynamics::{
     ContinuousDynamics, ContinuousLinearSystem, DiscreteDynamics, DiscreteLinearSystem,
 };
 use ssm_rs::filters::{Filter, KalmanFilter, StateEstimate};
-use rand_distr::Distribution;
 use ssm_rs::noise::{Gaussian, NoiseProcess, VarianceGammaNoise};
 use ssm_rs::plots::StatePlot;
 use ssm_rs::types::Real;
@@ -37,7 +37,7 @@ fn main() {
     let mut trajectory = vec![x];
     let mut observations = vec![dynamics.observe(&x, &observation_noise.sample(&mut rng))];
 
-    let filter = KalmanFilter::new(dynamics, matrix![sp * sp * dt], matrix![so * so]);
+    let filter = KalmanFilter::new(&dynamics, matrix![sp * sp * dt], matrix![so * so]);
     let mut state = StateEstimate::new(x, SMatrix::<Real, 2, 2>::identity());
 
     let mut states = vec![state.clone()];
