@@ -27,7 +27,13 @@ impl<const N: usize> RandomVariable<N> for Gaussian<N> {
     fn log_pdf(&self, x: SVector<Real, N>) -> Result<Real, PdfError> {
         let diff = x - self.mean;
         let y = self.cholesky.solve_lower_triangular(&diff).unwrap();
-        let log_det = 2. * self.cholesky.diagonal().iter().map(|s| s.ln()).sum::<Real>();
+        let log_det = 2.
+            * self
+                .cholesky
+                .diagonal()
+                .iter()
+                .map(|s| s.ln())
+                .sum::<Real>();
         Ok(-0.5 * ((N as Real) * (2.0 * std::f64::consts::PI).ln() + log_det + y.dot(&y)))
     }
 }

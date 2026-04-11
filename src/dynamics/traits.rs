@@ -5,6 +5,10 @@ pub trait DiscreteDynamics<const X: usize, const U: usize, const Y: usize, const
     fn f(&self, x: &SVector<Real, X>, u: &SVector<Real, U>) -> SVector<Real, X>;
 
     fn f_jacobian(&self, x: &SVector<Real, X>, u: &SVector<Real, U>) -> SMatrix<Real, X, X>;
+    
+    fn b_jacobian(&self, x: &SVector<Real, X>, u: &SVector<Real, U>) -> SMatrix<Real, X, U>;
+
+    fn g_jacobian(&self, x: &SVector<Real, X>) -> SMatrix<Real, Y, X>;
 
     fn h_matrix(&self) -> &SMatrix<Real, X, Z>;
 
@@ -28,7 +32,11 @@ pub trait ContinuousDynamics<const X: usize, const U: usize, const Y: usize, con
 
     fn f_jacobian(&self, x: &SVector<Real, X>, u: &SVector<Real, U>) -> SMatrix<Real, X, X>;
 
+    fn b_jacobian(&self, x: &SVector<Real, X>, u: &SVector<Real, U>) -> SMatrix<Real, X, U>;
+
     fn g(&self, x: &SVector<Real, X>) -> SVector<Real, Y>;
+
+    fn g_jacobian(&self, x: &SVector<Real, X>) -> SMatrix<Real, Y, X>;
 
     fn h_matrix(&self) -> &SMatrix<Real, X, Z>;
 

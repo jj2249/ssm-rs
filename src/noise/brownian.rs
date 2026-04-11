@@ -27,7 +27,13 @@ impl<const N: usize> NoiseProcess<N> for BrownianNoise<N> {
         let diff = x - self.mean * dt;
         // Cholesky of (Σ·dt) is √dt · L, so (√dt · L)⁻¹ · diff = L⁻¹ · diff / √dt
         let y = self.cholesky.solve_lower_triangular(&diff).unwrap() / dt.sqrt();
-        let log_det = 2. * self.cholesky.diagonal().iter().map(|s| s.ln()).sum::<Real>()
+        let log_det = 2.
+            * self
+                .cholesky
+                .diagonal()
+                .iter()
+                .map(|s| s.ln())
+                .sum::<Real>()
             + (N as Real) * dt.ln();
         Ok(-0.5 * ((N as Real) * (2.0 * std::f64::consts::PI).ln() + log_det + y.dot(&y)))
     }
