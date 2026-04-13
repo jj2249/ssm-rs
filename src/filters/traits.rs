@@ -1,6 +1,9 @@
 use nalgebra::SVector;
 
-use crate::{dynamics::DiscreteDynamics, types::Real};
+use crate::{
+    dynamics::DiscreteDynamics,
+    types::Real,
+};
 
 use super::estimate::StateEstimate;
 

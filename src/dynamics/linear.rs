@@ -1,7 +1,10 @@
 use nalgebra::{DMatrix, SMatrix, SVector};
 
 use crate::{
-    dynamics::{DiscreteDynamics, traits::ContinuousDynamics},
+    dynamics::traits::{
+        ContinuousDynamics, DifferentiableContinuousDynamics, DifferentiableDiscreteDynamics,
+        DiscreteDynamics,
+    },
     maths::expm,
     types::Real,
 };
@@ -35,6 +38,14 @@ impl<const X: usize, const U: usize, const Y: usize, const Z: usize> ContinuousD
     fn g(&self, x: &SVector<Real, X>) -> SVector<Real, Y> {
         self.g * x
     }
+    fn h_matrix(&self) -> &SMatrix<Real, X, Z> {
+        &self.h
+    }
+}
+
+impl<const X: usize, const U: usize, const Y: usize, const Z: usize>
+    DifferentiableContinuousDynamics<X, U, Y, Z> for ContinuousLinearSystem<X, U, Y, Z>
+{
     fn f_jacobian(&self, _x: &SVector<Real, X>, _u: &SVector<Real, U>) -> SMatrix<Real, X, X> {
         self.f
     }
@@ -43,9 +54,6 @@ impl<const X: usize, const U: usize, const Y: usize, const Z: usize> ContinuousD
     }
     fn g_jacobian(&self, _x: &SVector<Real, X>) -> SMatrix<Real, Y, X> {
         self.g
-    }
-    fn h_matrix(&self) -> &SMatrix<Real, X, Z> {
-        &self.h
     }
 }
 
@@ -69,12 +77,10 @@ impl<const X: usize, const U: usize, const Y: usize, const Z: usize>
         Self { f, b, h, g }
     }
 
-    pub fn from_expm<D>(model: &D, dt: Real) -> Self
-    where D: ContinuousDynamics<X, U, Y, Z>
-    {
+    pub fn from_expm(model: &ContinuousLinearSystem<X, U, Y, Z>, dt: Real) -> Self {
         let mut m = DMatrix::<Real>::zeros(X + U, X + U);
-        m.view_mut((0, 0), (X, X)).copy_from(&(model.f_jacobian(&SVector::zeros(), &SVector::zeros()) * dt));
-        m.view_mut((0, X), (X, U)).copy_from(&(model.b_jacobian(&SVector::zeros(), &SVector::zeros()) * dt));
+        m.view_mut((0, 0), (X, X)).copy_from(&(model.f * dt));
+        m.view_mut((0, X), (X, U)).copy_from(&(model.b * dt));
 
         let m_exp = expm(&m);
 
@@ -86,8 +92,8 @@ impl<const X: usize, const U: usize, const Y: usize, const Z: usize>
         Self {
             f,
             b,
-            h: *model.h_matrix(),
-            g: model.g_jacobian(&SVector::zeros()),
+            h: model.h,
+            g: model.g,
         }
     }
 }
@@ -101,6 +107,14 @@ impl<const X: usize, const U: usize, const Y: usize, const Z: usize> DiscreteDyn
     fn g(&self, x: &SVector<Real, X>) -> SVector<Real, Y> {
         self.g * x
     }
+    fn h_matrix(&self) -> &SMatrix<Real, X, Z> {
+        &self.h
+    }
+}
+
+impl<const X: usize, const U: usize, const Y: usize, const Z: usize>
+    DifferentiableDiscreteDynamics<X, U, Y, Z> for DiscreteLinearSystem<X, U, Y, Z>
+{
     fn f_jacobian(&self, _x: &SVector<Real, X>, _u: &SVector<Real, U>) -> SMatrix<Real, X, X> {
         self.f
     }
@@ -109,8 +123,5 @@ impl<const X: usize, const U: usize, const Y: usize, const Z: usize> DiscreteDyn
     }
     fn g_jacobian(&self, _x: &SVector<Real, X>) -> SMatrix<Real, Y, X> {
         self.g
-    }
-    fn h_matrix(&self) -> &SMatrix<Real, X, Z> {
-        &self.h
     }
 }

@@ -1,14 +1,14 @@
 use nalgebra::{SMatrix, SVector};
 
 use crate::{
-    dynamics::DiscreteDynamics,
+    dynamics::{DifferentiableDiscreteDynamics, DiscreteDynamics},
     filters::{Filter, StateEstimate},
     types::Real,
 };
 
 pub struct KalmanFilter<'d, D, const X: usize, const U: usize, const Y: usize, const Z: usize>
 where
-    D: DiscreteDynamics<X, U, Y, Z>,
+    D: DiscreteDynamics<X, U, Y, Z> + DifferentiableDiscreteDynamics<X, U, Y, Z>,
 {
     dynamics: &'d D,
     q: SMatrix<Real, Z, Z>,
@@ -18,7 +18,7 @@ where
 impl<'d, D, const X: usize, const U: usize, const Y: usize, const Z: usize>
     KalmanFilter<'d, D, X, U, Y, Z>
 where
-    D: DiscreteDynamics<X, U, Y, Z>,
+    D: DiscreteDynamics<X, U, Y, Z> + DifferentiableDiscreteDynamics<X, U, Y, Z>,
 {
     pub fn new(dynamics: &'d D, q: SMatrix<Real, Z, Z>, r: SMatrix<Real, Y, Y>) -> Self {
         Self { dynamics, q, r }
@@ -28,10 +28,10 @@ where
 impl<'d, D, const X: usize, const U: usize, const Y: usize, const Z: usize>
     Filter<'d, D, X, U, Y, Z> for KalmanFilter<'d, D, X, U, Y, Z>
 where
-    D: DiscreteDynamics<X, U, Y, Z>,
+    D: DiscreteDynamics<X, U, Y, Z> + DifferentiableDiscreteDynamics<X, U, Y, Z>,
 {
     fn dynamics(&self) -> &'d D {
-        &self.dynamics
+        self.dynamics
     }
     fn predict(&self, state: &StateEstimate<X>, u: &SVector<Real, U>) -> StateEstimate<X> {
         let dynamics = self.dynamics();
